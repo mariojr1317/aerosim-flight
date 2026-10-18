@@ -27,7 +27,10 @@ window.AeroPhysics = (() => {
 
     // Aproximación de un avión ligero monomotor tipo entrenador.
     const mass = 1100;
-    const wingArea = 16.2;
+    const wingArea = 16.2;       // área alar aproximada compatible con el ala del modelo
+    const wingSpan = 10.9;       // envergadura aproximada del modelo
+    const aspectRatio = wingSpan * wingSpan / wingArea;
+    const oswaldEfficiency = 0.78;
     const maxThrust = 2600;
     const aero = airAt(s.altitude);
     const g = gravityAt(s.altitude);
@@ -51,7 +54,13 @@ window.AeroPhysics = (() => {
     cl *= postStall;
 
     // La resistencia del aire crece aproximadamente con el cuadrado de la velocidad.
-    const cd = 0.032 + 0.055 * cl * cl +
+    const heightAboveGround = Math.max(0, s.altitude - (Number.isFinite(s.groundHeight) ? s.groundHeight : 0));
+    // Resistencia inducida según envergadura y área del ala; disminuye cerca del suelo (efecto suelo).
+    const groundEffect = heightAboveGround < wingSpan * 0.5
+      ? 1 - 0.45 * Math.pow(1 - heightAboveGround / (wingSpan * 0.5), 2)
+      : 1;
+    const inducedCd = (cl * cl) / (Math.PI * oswaldEfficiency * aspectRatio) * groundEffect;
+    const cd = 0.028 + 0.018 * cl * cl + inducedCd +
       (absAlpha > 0.24 ? 0.16 * Math.min(1, (absAlpha - 0.24) * 4) : 0);
     const lift = qbar * wingArea * cl;
     const drag = qbar * wingArea * cd;
@@ -86,7 +95,7 @@ window.AeroPhysics = (() => {
     s.heading = ((s.heading + g * Math.tan(s.roll) / vSafe * dt) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
 
     return {
-      lift, drag, rho, alpha, stall, qbar, thrust, gravity: g,
+      lift, drag, rho, alpha, stall, qbar, thrust, gravity: g, wingArea, wingSpan, aspectRatio, groundEffect,
       verticalSpeed: nextSpeed * Math.sin(nextGamma),
       airspeed: nextSpeed
     };
