@@ -113,9 +113,14 @@ function buildCity3D(centerLat,centerLon){
    const width=18+rand()*35,depth=18+rand()*34;
    const floors=2+Math.floor(rand()*(rand()>.87?20:7)),height=floors*3.2;
    const buildingLat=centerLat+north/111320,buildingLon=centerLon+east/(111320*cosLat);
-   const ground=Math.max(0,viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(buildingLon,buildingLat))??(groundHeight||0));
+   // Nunca entregar coordenadas, alturas ni dimensiones no finitas a Cesium.
+   if(!Number.isFinite(buildingLat)||!Number.isFinite(buildingLon)||!Number.isFinite(width)||!Number.isFinite(depth)||!Number.isFinite(height)||width<=0||depth<=0||height<=0)continue;
+   const sampledGround=viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(buildingLon,buildingLat));
+   const fallbackGround=Number.isFinite(groundHeight)?groundHeight:0;
+   const ground=Math.max(0,Number.isFinite(sampledGround)?sampledGround:fallbackGround);
    const palette=['#b8b0a0','#d6c7a8','#8997a1','#b9c4c9','#d0b7a0','#777f88','#e0d9ca'];
    const pos=Cesium.Cartesian3.fromDegrees(buildingLon,buildingLat,ground+height/2);
+   if(!Number.isFinite(pos.x)||!Number.isFinite(pos.y)||!Number.isFinite(pos.z))continue;
    cityBuildings.push(viewer.entities.add({name:'Edificio 3D',position:pos,box:{dimensions:new Cesium.Cartesian3(width,depth,height),material:Cesium.Color.fromCssColorString(palette[Math.floor(rand()*palette.length)]),outline:true,outlineColor:Cesium.Color.fromCssColorString('#303943').withAlpha(.65)}}));
   }
  }
