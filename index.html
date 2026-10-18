@@ -153,9 +153,18 @@ function mpSetupConnection(conn){
 }
 function mpReceiveState(id,s){
  if(!s||!id||id===mpPeer?.id)return;
+ // Nunca permitir datos de red inválidos que puedan crear geometría/posiciones no finitas en Cesium.
+ const required=['lat','lon','altitude','heading','pitch','roll','speed'];
+ for(const key of required){if(!Number.isFinite(s[key])){console.warn('Estado multijugador inválido ignorado:',id,key);return;}}
+ if(s.lat < -85||s.lat > 85||s.lon < -180||s.lon > 180||s.altitude < -1000||s.altitude > 100000)return;
  let p=remotePlanes.get(id);
- if(!p){const pos=Cesium.Cartesian3.fromDegrees(s.lon,s.lat,s.altitude);const entity=viewer.entities.add({name:'Avión multijugador '+id,position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(s.heading-Cesium.Math.PI_OVER_TWO,s.pitch,s.roll)),model:{uri:'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',minimumPixelSize:48,maximumScale:400},label:{text:'Piloto '+String(id).slice(-4),font:'12px sans-serif',fillColor:Cesium.Color.LIME,outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,verticalOrigin:Cesium.VerticalOrigin.BOTTOM,pixelOffset:new Cesium.Cartesian2(0,-20)}});p={entity,state:s};remotePlanes.set(id,p);}
- p.state=s;if(!p.wreckage){p.entity.position=Cesium.Cartesian3.fromDegrees(s.lon,s.lat,s.altitude);p.entity.orientation=Cesium.Transforms.headingPitchRollQuaternion(p.entity.position,new Cesium.HeadingPitchRoll(s.heading-Cesium.Math.PI_OVER_TWO,s.pitch,s.roll));if(p.entity.model)p.entity.model.show=!s.crashed;}if(s.crashed)spawnRemoteWreckage(id);
+ // Límite de jugadores remotos para evitar saturar el renderizado en Chromebooks.
+ if(!p&&remotePlanes.size>=8){if(!remotePlanes.has(id))return;}
+ // Los edificios 3D de tiles consumen bastante GPU; priorizar aviones y estabilidad en multijugador.
+ if(!p&&osmBuildingsTileset&&osmBuildingsTileset.show){osmBuildingsTileset.show=false;setMessage('Modo multijugador optimizado','Se ocultaron temporalmente los edificios OSM 3D para dar prioridad al renderizado de los aviones.');}
+ const safe={...s,lat:s.lat,lon:s.lon,altitude:s.altitude,heading:s.heading,pitch:s.pitch,roll:s.roll,speed:s.speed};
+ if(!p){const pos=Cesium.Cartesian3.fromDegrees(safe.lon,safe.lat,safe.altitude);const entity=viewer.entities.add({name:'Avión multijugador '+id,position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(safe.heading-Cesium.Math.PI_OVER_TWO,safe.pitch,safe.roll)),model:{uri:'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',minimumPixelSize:32,maximumScale:250},label:{text:'Piloto '+String(id).slice(-4),font:'12px sans-serif',fillColor:Cesium.Color.LIME,outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,verticalOrigin:Cesium.VerticalOrigin.BOTTOM,pixelOffset:new Cesium.Cartesian2(0,-20)}});p={entity,state:safe};remotePlanes.set(id,p);}
+ p.state=safe;if(!p.wreckage){p.entity.position=Cesium.Cartesian3.fromDegrees(safe.lon,safe.lat,safe.altitude);p.entity.orientation=Cesium.Transforms.headingPitchRollQuaternion(p.entity.position,new Cesium.HeadingPitchRoll(safe.heading-Cesium.Math.PI_OVER_TWO,safe.pitch,safe.roll));if(p.entity.model)p.entity.model.show=!safe.crashed;}if(safe.crashed)spawnRemoteWreckage(id);
 }
 function spawnRemoteWreckage(id){
  const p=remotePlanes.get(id);if(!p||p.wreckage)return;
