@@ -120,7 +120,7 @@ window.AeroPhysics = (() => {
 
     // Respuesta angular con inercia, amortiguación y estabilidad longitudinal.
     // La entrada del elevador cambia la tasa de cabeceo, no la actitud instantáneamente.
-    const pitchControlMoment = elevator * 1550;
+    const pitchControlMoment = elevator * 3200; // Autoridad de elevador suficiente para rotación y recuperación a baja altura.
     const pitchStabilityMoment = -qbar * AIRCRAFT.wingArea * AIRCRAFT.meanChord *
       (0.72 * alpha + 0.20 * pitchRate);
     const pitchAccel = (pitchControlMoment + pitchStabilityMoment) / AIRCRAFT.pitchInertia;
