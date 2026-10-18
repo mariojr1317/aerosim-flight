@@ -46,12 +46,12 @@ viewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(-89.1198,13.699
 viewer.scene.screenSpaceCameraController.minimumZoomDistance=20;
 // El terreno se carga en segundo plano para que un servidor lento no congele la inicialización.
 Cesium.CesiumTerrainProvider.fromUrl('https://terrain.reearth.land/cesium-mesh/ellipsoid',{requestVertexNormals:true,requestWaterMask:true})
- .then(terrain=>{viewer.terrainProvider=terrain;console.info('Terreno 3D conectado');})
+ .then(async terrain=>{viewer.terrainProvider=terrain;console.info('Terreno 3D conectado');try{const sample=await Cesium.sampleTerrainMostDetailed(terrain,[Cesium.Cartographic.fromDegrees(start.lon,start.lat)]);if(Number.isFinite(sample[0].height)){groundHeight=sample[0].height;start.alt=groundHeight+2;if(landed&&!crashed)altitude=start.alt;}}catch(e){console.warn('No se pudo muestrear la pista; se usa altura aproximada.',e);}})
  .catch(err=>{console.warn('Terreno 3D no disponible; se mantiene el globo base:',err);});
 viewer.scene.screenSpaceCameraController.maximumZoomDistance=25000000;
-const keys={};let throttle=.55,pitch=.08,roll=0,heading=0,speed=145,altitude=900,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,landed=false,last=performance.now(),aircraft,hitbox,hitboxVisible=false,groundHeight=0,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false};
+const keys={};let throttle=0,pitch=0,roll=0,heading=0,speed=0,altitude=620,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,landed=true,last=performance.now(),aircraft,hitbox,hitboxVisible=false,groundHeight=618,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false},debrisPieces=[],smokePuffs=[],fireEntity=null,crashStarted=0;
 const radians=Math.PI/180;
-const start={lat:13.6995,lon:-89.1198,alt:900};
+const start={lat:13.6995,lon:-89.1198,alt:620};
 function setMessage(a,b,cls='good'){$('message').textContent=a;$('message').className=cls;$('detail').textContent=b}
 let satelliteLayer=null;
 async function enableSatellite(){
@@ -80,9 +80,37 @@ function makePlane(){
  path:{resolution:1,material:Cesium.Color.CYAN.withAlpha(.7),width:2}});
  hitbox=viewer.entities.add({name:'Hitbox 3D del avión',position,orientation,show:hitboxVisible,box:{dimensions:new Cesium.Cartesian3(16,11,4),material:Cesium.Color.CYAN.withAlpha(.16),outline:true,outlineColor:Cesium.Color.CYAN}});
 }
-function reset(){lat=start.lat;lon=start.lon;altitude=start.alt;speed=145;pitch=.08;roll=0;heading=0;throttle=.55;health=100;crashed=false;landed=false;gear=true;flightPathAngle=0;pitchRate=0;rollRate=0;
- if(aircraft)viewer.entities.remove(aircraft);if(hitbox)viewer.entities.remove(hitbox);makePlane();viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(lon,lat,altitude+1800),duration:1.5});
- setMessage('Listo para volar','Estás sobre Ilopango, El Salvador. Aumenta potencia para ganar velocidad.');}
+function clearCrashEffects(){for(const d of debrisPieces)viewer.entities.remove(d.entity);for(const s of smokePuffs)viewer.entities.remove(s.entity);if(fireEntity)viewer.entities.remove(fireEntity);debrisPieces=[];smokePuffs=[];fireEntity=null;}
+function localPosition(x,y,z){return Cesium.Cartesian3.fromDegrees(lon+x/(111320*Math.max(.15,Math.cos(lat*radians))),lat+y/111320,z);}
+function destroyAircraft(){
+ if(aircraft){viewer.entities.remove(aircraft);aircraft=null;}if(hitbox){viewer.entities.remove(hitbox);hitbox=null;}
+ const ground=groundHeight+.7;
+ const parts=[
+  {x:0,y:0,z:ground+1.2,s:[4.2,2.2,1.1],color:'#353b40'},
+  {x:-5,y:2,z:ground+1,s:[3.5,1.1,.25],color:'#777d80'},
+  {x:4,y:-2,z:ground+1.1,s:[3.2,1,.25],color:'#60686b'},
+  {x:-1,y:-4,z:ground+.9,s:[2.2,.8,.22],color:'#454b50'},
+  {x:2,y:4,z:ground+1.2,s:[2.4,.8,.2],color:'#777d80'},
+  {x:-7,y:-2,z:ground+.7,s:[1.4,.65,.18],color:'#343a40'},
+  {x:7,y:2,z:ground+.8,s:[1.6,.7,.2],color:'#343a40'},
+  {x:0,y:6,z:ground+.6,s:[1.5,.7,.18],color:'#8a4b22'},
+  {x:3,y:-6,z:ground+.6,s:[1.2,.6,.16],color:'#555b60'}
+ ];
+ for(const p of parts){const z=p.z+3,pos=localPosition(p.x,p.y,z);const entity=viewer.entities.add({name:'Restos del avión',position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(heading+Math.random()*.8,Math.random()*.5,Math.random()*.8)),box:{dimensions:new Cesium.Cartesian3(...p.s),material:Cesium.Color.fromCssColorString(p.color),outline:true,outlineColor:Cesium.Color.BLACK}});debrisPieces.push({entity,x:p.x,y:p.y,z,vx:(Math.random()-.5)*18,vy:(Math.random()-.5)*18,vz:8+Math.random()*12,spin:(Math.random()-.5)*3,angle:0});}
+ for(let i=0;i<7;i++){const pos=localPosition((Math.random()-.5)*3,(Math.random()-.5)*3,ground+2+i*.5);const entity=viewer.entities.add({name:'Humo del impacto',position:pos,ellipsoid:{radii:new Cesium.Cartesian3(1.4+i*.35,1.4+i*.35,1.7+i*.5),material:Cesium.Color.fromCssColorString('#292d31').withAlpha(.62-i*.055),outline:false}});smokePuffs.push({entity,age:0,offset:i*.18});}
+ fireEntity=viewer.entities.add({name:'Fuego del impacto',position:localPosition(0,0,ground+1.5),ellipsoid:{radii:new Cesium.Cartesian3(2.1,2.1,1.8),material:Cesium.Color.ORANGE.withAlpha(.8),outline:false}});
+ crashStarted=performance.now();
+ viewer.camera.flyTo({destination:localPosition(0,-35,ground+28),orientation:{heading:heading,pitch:-.45,roll:0},duration:1.2});
+}
+function updateCrashEffects(dt,now){
+ const elapsed=(now-crashStarted)/1000;
+ for(const d of debrisPieces){d.vz-=9.81*dt;d.x+=d.vx*dt;d.y+=d.vy*dt;d.z+=d.vz*dt;if(d.z<groundHeight+.3){d.z=groundHeight+.3;d.vz=0;d.vx*=.82;d.vy*=.82;}d.angle+=d.spin*dt;const p=localPosition(d.x,d.y,d.z);d.entity.position=p;d.entity.orientation=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading+d.angle,d.angle*.5,d.angle*.3));}
+ for(const s of smokePuffs){s.age+=dt;const scale=1+s.age*.65;const p=localPosition(Math.sin(s.age+s.offset)*.6,Math.cos(s.age+s.offset)*.6,groundHeight+2+s.age*2);s.entity.position=p;s.entity.ellipsoid.radii=new Cesium.Cartesian3(1.4*scale,1.4*scale,1.7*scale);s.entity.ellipsoid.material=Cesium.Color.fromCssColorString('#292d31').withAlpha(Math.max(0,.62-s.age*.075));}
+ if(fireEntity){fireEntity.position=localPosition(0,0,groundHeight+1.5);fireEntity.ellipsoid.material=Cesium.Color.fromCssColorString(elapsed<2?'#ff6a00':'#a83216').withAlpha(Math.max(0,.8-elapsed*.09));fireEntity.ellipsoid.radii=new Cesium.Cartesian3(2.1+Math.min(2,elapsed),2.1+Math.min(2,elapsed),1.8+Math.min(2,elapsed));if(elapsed>10){viewer.entities.remove(fireEntity);fireEntity=null;}}
+}
+function reset(){clearCrashEffects();lat=start.lat;lon=start.lon;altitude=start.alt;speed=0;pitch=0;roll=0;heading=0;throttle=0;health=100;crashed=false;landed=true;gear=true;flightPathAngle=0;pitchRate=0;rollRate=0;
+ if(aircraft)viewer.entities.remove(aircraft);if(hitbox)viewer.entities.remove(hitbox);makePlane();viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(lon,lat,altitude+350),orientation:{heading:0,pitch:-.25,roll:0},duration:1.5});
+ setMessage('En pista · listo para despegar','Estás en el suelo en Ilopango. Mantén ↑ para aumentar potencia y velocidad; usa W/S y A/D en vuelo.');}
 $('reset').onclick=reset;
 $('home').onclick=()=>{lat=13.6995;lon=-89.1198;viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(lon,lat,altitude+1600),duration:1.5});follow=true;};
 $('map').onclick=()=>{follow=false;viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(0,10,22000000),duration:2});};
@@ -92,8 +120,8 @@ viewer.camera.moveEnd.addEventListener(()=>{});
 function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000,.05);last=now; if(!viewer.isDestroyed())viewer.scene.requestRender();
  groundHeight=viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(lon,lat)) ?? groundHeight;
  if(landed&&!crashed){
-  if(keys.arrowup)throttle=Math.min(1,throttle+dt*.25);if(keys.arrowdown)throttle=Math.max(0,throttle-dt*.25);
-  speed=Math.max(0,Math.min(130,speed+(throttle*55-18)*dt));altitude=groundHeight+2;pitch=0;roll=0;flightPathAngle=0;
+  if(keys.arrowup)throttle=Math.min(1,throttle+dt*.7);if(keys.arrowdown)throttle=Math.max(0,throttle-dt*.7);
+  speed=Math.max(0,Math.min(150,speed+(throttle*24-5)*dt));altitude=groundHeight+2;pitch=0;roll=0;flightPathAngle=0;
   lat+=Math.cos(heading)*(speed/3.6)*dt/111320;lon+=Math.sin(heading)*(speed/3.6)*dt/(111320*Math.max(.15,Math.cos(lat*radians)));
   if(speed>95&&throttle>.7){landed=false;setMessage('Carrera de despegue','Aumenta velocidad y mantén el avión alineado.');}
  }
@@ -111,17 +139,18 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  if(lon>180)lon-=360;if(lon< -180)lon+=360;lat=Math.max(-85,Math.min(85,lat));
  if(altitude<=groundHeight+3){
   const impactSpeed=Math.abs(physicsData.verticalSpeed||0);altitude=groundHeight+2;
-  if(impactSpeed>5||speed>165||!gear){health=Math.max(0,health-25);crashed=true;landed=false;setMessage('¡Colisión con el terreno!','La caja de colisión tocó el suelo con demasiada velocidad, descenso brusco o tren recogido. Pulsa R para reiniciar.','warn');}
+  if(impactSpeed>5||speed>165||!gear){health=0;crashed=true;landed=false;destroyAircraft();setMessage('AVIÓN DESTRUIDO','Impacto catastrófico: fuselaje fragmentado, restos dispersos y humo en el punto de impacto. Pulsa R para volver a la pista.','warn');}
   else{landed=true;pitch=0;roll=0;flightPathAngle=0;pitchRate=0;rollRate=0;speed=Math.min(speed,95);setMessage('Aterrizaje','Contacto con el terreno detectado. Usa ↑ para acelerar y despegar.');}
 }
  if(physicsData.stall&&altitude>100){setMessage('AVISO: PÉRDIDA DE SUSTENTACIÓN','Reduce el ángulo de ataque y aumenta potencia para recuperar velocidad.','warn');}
  }
  if(aircraft){const p=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);const q=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading,pitch,roll));aircraft.position=p;aircraft.orientation=q;if(hitbox){hitbox.position=p;hitbox.orientation=q;hitbox.show=hitboxVisible;}}
+ if(crashed&&debrisPieces.length)updateCrashEffects(dt,now);
  if(follow&&!crashed){viewer.camera.lookAt(Cesium.Cartesian3.fromDegrees(lon,lat,altitude),new Cesium.HeadingPitchRange(heading, -0.18, 2400));}
  $('speed').textContent=Math.round(speed);$('alt').textContent=Math.round(altitude);$('ground').textContent=Math.round(groundHeight);$('power').textContent=Math.round(throttle*100);$('bank').textContent=Math.round(roll*57.3);$('health').textContent=health;$('coords').textContent=lat.toFixed(3)+', '+lon.toFixed(3);
 }
 reset();requestAnimationFrame(tick);
-setMessage('Mapa Cesium listo','El mapa base debería aparecer primero. Pulsa «Satélite» para intentar activar imágenes aéreas.');
+setMessage('En pista · listo para despegar','Aumenta potencia con ↑ para iniciar la carrera de despegue.');
 })();
 </script>
 </body></html>
