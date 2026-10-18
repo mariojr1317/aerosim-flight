@@ -16,8 +16,8 @@ button,select{background:#16466b;color:white;border:1px solid #5a9fc8;border-rad
 <body>
 <div id="cesiumContainer"></div>
 <div class="panel" id="hud"><b>AEROSIM · WORLD FLIGHT</b><br>
-Velocidad: <span id="speed">0</span> km/h<br>Altitud: <span id="alt">0</span> m<br>
-Potencia: <span id="power">55</span>%<br>Inclinación: <span id="bank">0</span>°<br>
+Velocidad: <span id="speed">0</span> km/h<br>Velocidad vertical: <span id="vspeed">0</span> m/s<br>Altitud: <span id="alt">0</span> m<br>
+Potencia: <span id="power">55</span>%<br>Inclinación: <span id="bank">0</span>°<br>Densidad del aire: <span id="air">1.225</span> kg/m³<br>Gravedad: <span id="gravity">9.81</span> m/s²<br>
 Hora: <span id="clock">--:--:--</span><br>Ambiente: <span id="phase">Día</span><br>Integridad: <span id="health">100</span>%<br>Altura del suelo: <span id="ground">0</span> m<br>Posición: <span id="coords">13.7, -89.1</span></div>
 <div class="panel" id="help"><b>CONTROLES</b><br><span class="muted">W / S</span> Cabeceo<br><span class="muted">A / D</span> Alabeo<br><span class="muted">↑ / ↓</span> Potencia<br><span class="muted">G</span> Tren<br><span class="muted">C</span> Recentrar cámara<br><span class="muted">R</span> Reiniciar</div>
 <div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="home">Ir a Ilopango</button><button id="map">Seguir avión</button><button id="satellite">Satélite</button><button id="hitbox">Hitbox 3D: OFF</button><button id="daynight">Pausar ciclo</button></div>
@@ -59,7 +59,7 @@ Cesium.CesiumTerrainProvider.fromUrl('https://terrain.reearth.land/cesium-mesh/e
  .then(async terrain=>{viewer.terrainProvider=terrain;console.info('Terreno 3D conectado');try{const sample=await Cesium.sampleTerrainMostDetailed(terrain,[Cesium.Cartographic.fromDegrees(start.lon,start.lat)]);if(Number.isFinite(sample[0].height)){groundHeight=sample[0].height;start.alt=groundHeight+2;if(landed&&!crashed)altitude=start.alt;}}catch(e){console.warn('No se pudo muestrear la pista; se usa altura aproximada.',e);}})
  .catch(err=>{console.warn('Terreno 3D no disponible; se mantiene el globo base:',err);});
 viewer.scene.screenSpaceCameraController.maximumZoomDistance=25000000;
-const keys={};let throttle=0,pitch=0,roll=0,heading=0,speed=0,altitude=620,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,landed=true,last=performance.now(),aircraft,hitbox,hitboxVisible=false,groundHeight=618,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false},debrisPieces=[],smokePuffs=[],fireEntity=null,crashStarted=0;
+const keys={};let throttle=0,pitch=0,roll=0,heading=0,speed=0,altitude=620,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,landed=true,last=performance.now(),aircraft,hitbox,hitboxVisible=false,groundHeight=618,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false,rho:1.225,gravity:9.80665,verticalSpeed:0},debrisPieces=[],smokePuffs=[],fireEntity=null,crashStarted=0;
 const radians=Math.PI/180;
 const start={lat:13.6995,lon:-89.1198,alt:620};
 function setMessage(a,b,cls='good'){$('message').textContent=a;$('message').className=cls;$('detail').textContent=b}
@@ -159,7 +159,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  follow=true;
  const cameraTarget=crashed?localPosition(0,0,groundHeight+3):Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
  viewer.camera.lookAt(cameraTarget,new Cesium.HeadingPitchRange(heading,crashed?-0.35:-0.22,crashed?180:2400));
- const simDate=Cesium.JulianDate.toDate(viewer.clock.currentTime);const simHour=simDate.getUTCHours();$('clock').textContent=simDate.toISOString().slice(11,19)+' UTC';$('phase').textContent=simHour>=6&&simHour<18?'Día':'Noche';$('speed').textContent=Math.round(speed);$('alt').textContent=Math.round(altitude);$('ground').textContent=Math.round(groundHeight);$('power').textContent=Math.round(throttle*100);$('bank').textContent=Math.round(roll*57.3);$('health').textContent=health;$('coords').textContent=lat.toFixed(3)+', '+lon.toFixed(3);
+ const simDate=Cesium.JulianDate.toDate(viewer.clock.currentTime);const simHour=simDate.getUTCHours();$('clock').textContent=simDate.toISOString().slice(11,19)+' UTC';$('phase').textContent=simHour>=6&&simHour<18?'Día':'Noche';$('speed').textContent=Math.round(speed);$('vspeed').textContent=(physicsData.verticalSpeed||0).toFixed(1);$('alt').textContent=Math.round(altitude);$('ground').textContent=Math.round(groundHeight);$('power').textContent=Math.round(throttle*100);$('bank').textContent=Math.round(roll*57.3);$('air').textContent=(physicsData.rho||1.225).toFixed(3);$('gravity').textContent=(physicsData.gravity||9.80665).toFixed(3);$('health').textContent=health;$('coords').textContent=lat.toFixed(3)+', '+lon.toFixed(3);
 }
 reset();requestAnimationFrame(tick);
 setMessage('En pista · listo para despegar','Aumenta potencia con ↑ para iniciar la carrera de despegue.');
