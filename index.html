@@ -95,6 +95,38 @@ const keys={};let throttle=0,pitch=0,roll=0,heading=0,speed=0,altitude=620,lat=1
 const radians=Math.PI/180;
 const start={lat:13.6995,lon:-89.1198,alt:620};
 let choosingTakeoff=false,takeoffMarker=null;
+
+// Edificios 3D ligeros generados localmente; no necesitan token externo.
+let cityBuildings=[],cityCenter={lat:NaN,lon:NaN},lastCityBuild=0;
+function clearCityBuildings(){for(const b of cityBuildings)viewer.entities.remove(b);cityBuildings=[];}
+function buildCity3D(centerLat,centerLon){
+ clearCityBuildings();
+ cityCenter={lat:centerLat,lon:centerLon};
+ const cosLat=Math.max(.2,Math.cos(centerLat*radians));
+ for(let gx=-7;gx<=7;gx++)for(let gy=-7;gy<=7;gy++){
+  if(gx%3===0||gy%3===0)continue;
+  const seed=Math.abs((gx+19)*92821+(gy+23)*68917+Math.round((centerLat+90)*1000)+Math.round((centerLon+180)*1000));
+  const rand=(()=>{let x=seed>>>0;return()=>{x=(x*1664525+1013904223)>>>0;return x/4294967296;};})();
+  const count=1+(rand()>.78?1:0);
+  for(let j=0;j<count;j++){
+   const east=gx*125+(rand()-.5)*55+(j?28:0),north=gy*125+(rand()-.5)*55;
+   const width=18+rand()*35,depth=18+rand()*34;
+   const floors=2+Math.floor(rand()*(rand()>.87?20:7)),height=floors*3.2;
+   const buildingLat=centerLat+north/111320,buildingLon=centerLon+east/(111320*cosLat);
+   const ground=Math.max(0,viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(buildingLon,buildingLat))??(groundHeight||0));
+   const palette=['#b8b0a0','#d6c7a8','#8997a1','#b9c4c9','#d0b7a0','#777f88','#e0d9ca'];
+   const pos=Cesium.Cartesian3.fromDegrees(buildingLon,buildingLat,ground+height/2);
+   cityBuildings.push(viewer.entities.add({name:'Edificio 3D',position:pos,box:{dimensions:new Cesium.Cartesian3(width,depth,height),material:Cesium.Color.fromCssColorString(palette[Math.floor(rand()*palette.length)]),outline:true,outlineColor:Cesium.Color.fromCssColorString('#303943').withAlpha(.65)}}));
+  }
+ }
+ lastCityBuild=performance.now();
+ console.info('Edificios 3D generados:',cityBuildings.length);
+}
+function updateCity3D(){
+ if(performance.now()-lastCityBuild<8000)return;
+ const north=(lat-cityCenter.lat)*111320,east=(lon-cityCenter.lon)*111320*Math.cos(lat*radians);
+ if(!Number.isFinite(cityCenter.lat)||Math.hypot(north,east)>2200)buildCity3D(lat,lon);
+}
 const WORLD_PEER_ID='aerosim-public-world-v1';
 let mpPeer=null,mpHost=false,mpConnections=new Map(),remotePlanes=new Map(),mpLastSend=0,collisionLocked=false,mpReconnectPending=false;
 function mpStatus(s){$('mpStatus').textContent=s;}
@@ -362,7 +394,7 @@ $('map').onclick=()=>{follow=true;viewer.camera.lookAt(Cesium.Cartesian3.fromDeg
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=true;if(['ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault();if(/^[0-9]$/.test(e.key)){throttle=Number(e.key)/9;setMessage('Potencia: '+Math.round(throttle*100)+'%','Usa las teclas 0–9 para elegir directamente la potencia del motor.');}if(e.key==='F3'){e.preventDefault();setDebugMode(!debugMode);}if(k==='g')gear=!gear;if(k==='r')reset();if(k==='c'){follow=true;viewer.camera.lookAt(Cesium.Cartesian3.fromDegrees(lon,lat,altitude),new Cesium.HeadingPitchRange(heading,-0.22,2400));}});
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 viewer.camera.moveEnd.addEventListener(()=>{});
-function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000,.05);last=now;if(dt>0)debugFps=debugFps?debugFps*.9+(1/dt)*.1:1/dt; if(!viewer.isDestroyed())viewer.scene.requestRender();
+function tick(now){requestAnimationFrame(tick);updateCity3D();const dt=Math.min((now-last)/1000,.05);last=now;if(dt>0)debugFps=debugFps?debugFps*.9+(1/dt)*.1:1/dt; if(!viewer.isDestroyed())viewer.scene.requestRender();
  if(mpPeer&&mpPeer.open&&now-mpLastSend>100){const state=mpState();if(mpHost){mpBroadcast({type:'state',id:mpPeer.id,state});}else{for(const conn of mpConnections.values())mpSend(conn,{type:'state',state});}mpLastSend=now;}
  if(!crashed&&!landed&&!collisionLocked){for(const [id,p] of remotePlanes){const s=p.state;const north=(s.lat-lat)*111320;const east=(s.lon-lon)*111320*Math.cos(lat*radians);const horizontal=Math.hypot(north,east);if(horizontal<10&&Math.abs(s.altitude-altitude)<7&&speed>25&&s.speed>25){collisionLocked=true;health=0;crashed=true;landed=false;destroyAircraft();setMessage('¡COLISIÓN MULTIJUGADOR!','Chocaste con el avión de otro jugador. Pulsa R para reiniciar.','warn');if(mpHost)mpBroadcast({type:'crash',id:mpPeer.id});else for(const conn of mpConnections.values())mpSend(conn,{type:'crash',id:mpPeer.id});break;}}}
  groundHeight=viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(lon,lat)) ?? groundHeight;
@@ -426,7 +458,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
   $('dbgCoords').textContent=lat.toFixed(5)+', '+lon.toFixed(5);
  }
 }
-reset();mpConnectWorld();requestAnimationFrame(tick);
+reset();buildCity3D(start.lat,start.lon);mpConnectWorld();requestAnimationFrame(tick);
 setMessage('En pista · listo para despegar','Aumenta potencia con ↑ para iniciar la carrera de despegue. La velocidad de rotación es aproximada.');
 })();
 </script>
