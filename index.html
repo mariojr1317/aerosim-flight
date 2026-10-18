@@ -96,41 +96,47 @@ const radians=Math.PI/180;
 const start={lat:13.6995,lon:-89.1198,alt:620};
 let choosingTakeoff=false,takeoffMarker=null;
 
-// Edificios 3D ligeros generados localmente; no necesitan token externo.
-let cityBuildings=[],cityCenter={lat:NaN,lon:NaN},lastCityBuild=0;
-function clearCityBuildings(){for(const b of cityBuildings)viewer.entities.remove(b);cityBuildings=[];}
+// Edificios 3D locales, con una carga reducida para mantener estable el render de Cesium.
+let cityBuildings=[],cityCenter={lat:NaN,lon:NaN},lastCityBuild=0,cityBuildDisabled=false;
+function clearCityBuildings(){for(const b of cityBuildings){try{viewer.entities.remove(b);}catch(e){console.warn('No se pudo retirar un edificio:',e);}}cityBuildings=[];}
 function buildCity3D(centerLat,centerLon){
+ if(cityBuildDisabled)return;
+ // Evita posiciones inválidas si el avión o el selector de despegue salen de rango.
+ if(!Number.isFinite(centerLat)||!Number.isFinite(centerLon)||centerLat < -85||centerLat > 85||centerLon < -180||centerLon > 180)return;
  clearCityBuildings();
  cityCenter={lat:centerLat,lon:centerLon};
  const cosLat=Math.max(.2,Math.cos(centerLat*radians));
- for(let gx=-7;gx<=7;gx++)for(let gy=-7;gy<=7;gy++){
-  if(gx%3===0||gy%3===0)continue;
-  const seed=Math.abs((gx+19)*92821+(gy+23)*68917+Math.round((centerLat+90)*1000)+Math.round((centerLon+180)*1000));
-  const rand=(()=>{let x=seed>>>0;return()=>{x=(x*1664525+1013904223)>>>0;return x/4294967296;};})();
-  const count=1+(rand()>.78?1:0);
-  for(let j=0;j<count;j++){
-   const east=gx*125+(rand()-.5)*55+(j?28:0),north=gy*125+(rand()-.5)*55;
-   const width=18+rand()*35,depth=18+rand()*34;
-   const floors=2+Math.floor(rand()*(rand()>.87?20:7)),height=floors*3.2;
+ const palette=['#b8b0a0','#d6c7a8','#8997a1','#b9c4c9','#d0b7a0','#777f88','#e0d9ca'];
+ try{
+  // Menos objetos por cuadro: una cuadrícula compacta de hasta 49 edificios.
+  for(let gx=-4;gx<=4;gx++)for(let gy=-4;gy<=4;gy++){
+   if(gx%3===0||gy%3===0)continue;
+   const seed=Math.abs((gx+19)*92821+(gy+23)*68917+Math.round((centerLat+90)*1000)+Math.round((centerLon+180)*1000));
+   const rand=(()=>{let x=seed>>>0;return()=>{x=(x*1664525+1013904223)>>>0;return x/4294967296;};})();
+   const east=gx*150+(rand()-.5)*35,north=gy*150+(rand()-.5)*35;
+   const width=16+rand()*24,depth=16+rand()*24;
+   const floors=2+Math.floor(rand()*8),height=floors*3.2;
    const buildingLat=centerLat+north/111320,buildingLon=centerLon+east/(111320*cosLat);
-   // Nunca entregar coordenadas, alturas ni dimensiones no finitas a Cesium.
-   if(!Number.isFinite(buildingLat)||!Number.isFinite(buildingLon)||!Number.isFinite(width)||!Number.isFinite(depth)||!Number.isFinite(height)||width<=0||depth<=0||height<=0)continue;
+   if(!Number.isFinite(buildingLat)||!Number.isFinite(buildingLon)||buildingLat < -85||buildingLat > 85||buildingLon < -180||buildingLon > 180)continue;
    const sampledGround=viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(buildingLon,buildingLat));
    const fallbackGround=Number.isFinite(groundHeight)?groundHeight:0;
    const ground=Math.max(0,Number.isFinite(sampledGround)?sampledGround:fallbackGround);
-   const palette=['#b8b0a0','#d6c7a8','#8997a1','#b9c4c9','#d0b7a0','#777f88','#e0d9ca'];
    const pos=Cesium.Cartesian3.fromDegrees(buildingLon,buildingLat,ground+height/2);
    if(!Number.isFinite(pos.x)||!Number.isFinite(pos.y)||!Number.isFinite(pos.z))continue;
-   cityBuildings.push(viewer.entities.add({name:'Edificio 3D',position:pos,box:{dimensions:new Cesium.Cartesian3(width,depth,height),material:Cesium.Color.fromCssColorString(palette[Math.floor(rand()*palette.length)]),outline:true,outlineColor:Cesium.Color.fromCssColorString('#303943').withAlpha(.65)}}));
+   cityBuildings.push(viewer.entities.add({name:'Edificio 3D',position:pos,box:{dimensions:new Cesium.Cartesian3(width,depth,height),material:Cesium.Color.fromCssColorString(palette[Math.floor(rand()*palette.length)]),outline:false}}));
   }
+  lastCityBuild=performance.now();
+  console.info('Edificios 3D generados:',cityBuildings.length);
+ }catch(e){
+  console.error('Se desactivan los edificios 3D para proteger el render de Cesium:',e);
+  clearCityBuildings();cityBuildDisabled=true;
  }
- lastCityBuild=performance.now();
- console.info('Edificios 3D generados:',cityBuildings.length);
 }
 function updateCity3D(){
- if(performance.now()-lastCityBuild<8000)return;
+ if(cityBuildDisabled||performance.now()-lastCityBuild<8000)return;
+ if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat < -85||lat > 85||lon < -180||lon > 180)return;
  const north=(lat-cityCenter.lat)*111320,east=(lon-cityCenter.lon)*111320*Math.cos(lat*radians);
- if(!Number.isFinite(cityCenter.lat)||Math.hypot(north,east)>2200)buildCity3D(lat,lon);
+ if(!Number.isFinite(cityCenter.lat)||Math.hypot(north,east)>3500)buildCity3D(lat,lon);
 }
 const WORLD_PEER_ID='aerosim-public-world-v1';
 let mpPeer=null,mpHost=false,mpConnections=new Map(),remotePlanes=new Map(),mpLastSend=0,collisionLocked=false,mpReconnectPending=false;
