@@ -21,7 +21,7 @@ Velocidad: <span id="speed">0</span> km/h<br>Velocidad vertical: <span id="vspee
 Potencia: <span id="power">55</span>%<br>Inclinación: <span id="bank">0</span>°<br>Densidad del aire: <span id="air">1.225</span> kg/m³<br>Gravedad: <span id="gravity">9.81</span> m/s²<br>
 Hora: <span id="clock">--:--:--</span><br>Ambiente: <span id="phase">Día</span><br>Integridad: <span id="health">100</span>%<br>Altura del suelo: <span id="ground">0</span> m<br>Posición: <span id="coords">13.7, -89.1</span></div>
 <div class="panel" id="help"><b>CONTROLES</b><br><span class="muted">W / S</span> Cabeceo<br><span class="muted">A / D</span> Alabeo<br><span class="muted">0–9</span> Potencia (0–100%)<br><span class="muted">Espacio</span> Frenar<br><span class="muted">↑ / ↓</span> Ajustar potencia<br><span class="muted">G</span> Tren<br><span class="muted">C</span> Recentrar cámara<br><span class="muted">R</span> Reiniciar</div>
-<div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="chooseTakeoff">📍 Elegir despegue en el mapa</button><button id="home">Ir a Ilopango</button><span id="takeoffHint">Salida actual: Ilopango · activa “Elegir despegue” y pulsa en el mapa</span><button id="map">Seguir avión</button><button id="satellite">Satélite</button><button id="debugToggle" aria-pressed="false">Debug: OFF (F3)</button><span id="hitboxStatus" class="good" style="display:inline-block;padding:7px 10px;margin:3px;font-weight:700">Hitbox 3D: INVISIBLE</span><button id="daynight">Pausar ciclo</button></div>
+<div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="chooseTakeoff">📍 Elegir despegue en el mapa</button><button id="home">Ir a Ilopango</button><span id="takeoffHint">Salida actual: Ilopango · activa “Elegir despegue” y pulsa en el mapa</span><button id="map">Seguir avión</button><button id="satellite">Satélite</button><button id="osmBuildings">🏙️ Edificios OSM 3D</button><button id="debugToggle" aria-pressed="false">Debug: OFF (F3)</button><span id="hitboxStatus" class="good" style="display:inline-block;padding:7px 10px;margin:3px;font-weight:700">Hitbox 3D: INVISIBLE</span><button id="daynight">Pausar ciclo</button></div>
 <div class="panel" id="multiplayer"><b>MUNDO MULTIJUGADOR</b><br><div id="mpStatus">Conectando al mundo global…</div><small class="muted">Conexión automática · requiere internet</small></div>
 <div class="panel" id="audioPanel"><b>🎧 RADIO Y AUDIO DE CABINA</b><br><button id="soundEnable">🔊 Activar sonidos reales</button>
 <label for="radioStation">Emisoras a menos de 100 km de la posición del avión</label><button id="radioNearby" type="button">📡 Radios a menos de 100 km</button><select id="radioStation" style="width:100%"><option value="https://streaming.mundoclasicaupa.com:8001/radioelmundo">Radio El Mundo · 93.7 FM</option><option value="https://streaming.rcs.com.sv/proxy/abc/stream">ABC · 100.1 FM</option><option value="https://streaming.rcs.com.sv/proxy/urbana/stream">La Urbana · 94.9 FM</option><option value="https://media.dominiocreativo.com:8000/stream/1/">Radio YSKL · 104.1 FM</option><option value="https://streaming.rcs.com.sv/proxy/astral/stream">Radio Astral · 102.9 FM</option><option value="https://fast.citrus3.com:8314/stream">Radio YSUCA · 91.7 FM</option><option value="https://streaming.rcs.com.sv/proxy/chevere/stream">Radio La Chévere · 100.9 FM</option><option value="https://s2.radio.co/s3a7dc3d82/listen">Radio Bautista</option><option value="https://cloudstream2036.conectarhosting.com/8168/stream">Radio Verdad · 95.7 FM</option><option value="https://c11.radioboss.fm:8303/stream">Radio Rumba Latina</option><option value="https://streamer.radio.co/s3a3c12873/listen">La Tribu FM</option><option value="https://stream20.usastreams.com/8138/stream">100.7 Stereo</option><option value="https://surfmradio.com/">SUR FM · 105.3 FM</option></select>
@@ -224,6 +224,30 @@ async function enableSatellite(){
  }
 }
 $('satellite').onclick=enableSatellite;
+let osmBuildingsTileset=null,osmBuildingsLoading=false;
+$('osmBuildings').onclick=async()=>{
+ if(osmBuildingsTileset){osmBuildingsTileset.show=true;setMessage('Edificios OSM 3D activos','Edificios globales derivados de OpenStreetMap mediante Cesium ion.');return;}
+ if(osmBuildingsLoading)return;
+ const token=prompt('Pega tu token de acceso de Cesium ion. No es la API key de Google. Consíguelo en https://ion.cesium.com/tokens');
+ if(!token||!token.trim())return;
+ osmBuildingsLoading=true;$('osmBuildings').disabled=true;
+ setMessage('Cargando edificios OSM 3D…','Conectando con Cesium ion. Se requiere internet.');
+ try{
+  Cesium.Ion.defaultAccessToken=token.trim();
+  const tileset=await Cesium.createOsmBuildingsAsync();
+  viewer.scene.primitives.add(tileset);
+  osmBuildingsTileset=tileset;
+  cityBuildDisabled=true;
+  clearCityBuildings();
+  $('osmBuildings').textContent='🏙️ Edificios OSM: ACTIVOS';
+  setMessage('Edificios OSM 3D activos','Edificios globales derivados de OpenStreetMap. La cobertura y las alturas dependen de los datos disponibles.');
+ }catch(err){
+  console.error('No se pudieron cargar los edificios OSM de Cesium ion:',err);
+  setMessage('No se pudieron cargar los edificios OSM','Comprueba que el token de Cesium ion sea válido, tenga acceso de lectura y que la conexión funcione. Los edificios actuales se mantienen.','warn');
+ }finally{
+  osmBuildingsLoading=false;$('osmBuildings').disabled=false;
+ }
+};
 function setDebugMode(enabled){
  debugMode=!!enabled;
  $('debugPanel').style.display=debugMode?'block':'none';
