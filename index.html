@@ -230,30 +230,63 @@ function clearCrashEffects(){for(const d of debrisPieces)viewer.entities.remove(
 function localPosition(x,y,z){return Cesium.Cartesian3.fromDegrees(lon+x/(111320*Math.max(.15,Math.cos(lat*radians))),lat+y/111320,z);}
 function destroyAircraft(){
  if(window.AeroAudio)AeroAudio.crash();
- if(aircraft){viewer.entities.remove(aircraft);aircraft=null;}for(const part of hitboxParts)viewer.entities.remove(part.entity);hitboxParts=[];
- const ground=groundHeight+.7;
+ if(aircraft){viewer.entities.remove(aircraft);aircraft=null;}
+ for(const part of hitboxParts)viewer.entities.remove(part.entity);hitboxParts=[];
+ const ground=groundHeight;
  const parts=[
-  {x:0,y:0,z:ground+1.2,s:[4.2,2.2,1.1],color:'#353b40'},
-  {x:-5,y:2,z:ground+1,s:[3.5,1.1,.25],color:'#777d80'},
-  {x:4,y:-2,z:ground+1.1,s:[3.2,1,.25],color:'#60686b'},
-  {x:-1,y:-4,z:ground+.9,s:[2.2,.8,.22],color:'#454b50'},
-  {x:2,y:4,z:ground+1.2,s:[2.4,.8,.2],color:'#777d80'},
-  {x:-7,y:-2,z:ground+.7,s:[1.4,.65,.18],color:'#343a40'},
-  {x:7,y:2,z:ground+.8,s:[1.6,.7,.2],color:'#343a40'},
-  {x:0,y:6,z:ground+.6,s:[1.5,.7,.18],color:'#8a4b22'},
-  {x:3,y:-6,z:ground+.6,s:[1.2,.6,.16],color:'#555b60'}
+  {x:0,y:0,z:1.1,s:[5.2,2.7,1.5],color:'#303438'},
+  {x:-5,y:2,z:1.2,s:[4.2,1.4,.32],color:'#777d80'},
+  {x:4,y:-2,z:1.2,s:[4,1.3,.32],color:'#60686b'},
+  {x:-1,y:-4,z:.9,s:[2.8,1,.28],color:'#454b50'},
+  {x:2,y:4,z:1.2,s:[2.8,1,.25],color:'#777d80'},
+  {x:-7,y:-2,z:.7,s:[1.8,.8,.22],color:'#343a40'},
+  {x:7,y:2,z:.8,s:[2,.9,.24],color:'#343a40'},
+  {x:0,y:6,z:.6,s:[1.8,.8,.22],color:'#8a4b22'},
+  {x:3,y:-6,z:.6,s:[1.6,.7,.2],color:'#555b60'}
  ];
- for(const p of parts){const z=p.z+3,pos=localPosition(p.x,p.y,z);const entity=viewer.entities.add({name:'Restos del avión',position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(heading+Math.random()*.8,Math.random()*.5,Math.random()*.8)),box:{dimensions:new Cesium.Cartesian3(...p.s),material:Cesium.Color.fromCssColorString(p.color),outline:true,outlineColor:Cesium.Color.BLACK}});debrisPieces.push({entity,x:p.x,y:p.y,z,vx:(Math.random()-.5)*18,vy:(Math.random()-.5)*18,vz:8+Math.random()*12,spin:(Math.random()-.5)*3,angle:0});}
- for(let i=0;i<12;i++){const pos=localPosition((Math.random()-.5)*4,(Math.random()-.5)*4,ground+2+i*.35);const radius=2.2+i*.22;const entity=viewer.entities.add({name:'Humo negro del impacto',position:pos,ellipsoid:{radii:new Cesium.Cartesian3(radius,radius,radius*1.25),material:Cesium.Color.fromCssColorString('#25282b').withAlpha(.78-i*.035),outline:false}});smokePuffs.push({entity,age:0,offset:i*.18});}
- fireEntity=viewer.entities.add({name:'Llamas visibles del impacto',position:localPosition(0,0,ground+2),ellipsoid:{radii:new Cesium.Cartesian3(3.4,3.4,3.8),material:Cesium.Color.fromCssColorString('#ff4b00').withAlpha(.95),outline:false}});
- fireCoreEntity=viewer.entities.add({name:'Núcleo amarillo de las llamas',position:localPosition(.2,0,ground+1.4),ellipsoid:{radii:new Cesium.Cartesian3(1.8,1.8,2.3),material:Cesium.Color.fromCssColorString('#ffd23f').withAlpha(.96),outline:false}});
+ for(const p of parts){
+  const z=ground+p.z,pos=localPosition(p.x,p.y,z);
+  const entity=viewer.entities.add({name:'Fragmento del fuselaje',position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(heading+(Math.random()-.5)*1.2,(Math.random()-.5)*.7,(Math.random()-.5)*.8)),box:{dimensions:new Cesium.Cartesian3(...p.s),material:Cesium.Color.fromCssColorString(p.color),outline:true,outlineColor:Cesium.Color.BLACK}});
+  debrisPieces.push({entity,x:p.x,y:p.y,z,vx:(Math.random()-.5)*22,vy:(Math.random()-.5)*22,vz:7+Math.random()*13,spin:(Math.random()-.5)*3,angle:0});
+ }
+ for(let i=0;i<12;i++){
+  const pos=localPosition((Math.random()-.5)*4,(Math.random()-.5)*4,ground+2+i*.4),radius=2.2+i*.22;
+  const entity=viewer.entities.add({name:'Columna de humo negro',position:pos,ellipsoid:{radii:new Cesium.Cartesian3(radius,radius,radius*1.25),material:Cesium.Color.fromCssColorString('#25282b').withAlpha(.78-i*.035),outline:false}});
+  smokePuffs.push({entity,age:0,offset:i*.18});
+ }
+ fireEntity=viewer.entities.add({name:'Llamas naranjas del impacto',position:localPosition(0,0,ground+2),ellipsoid:{radii:new Cesium.Cartesian3(3.4,3.4,3.8),material:Cesium.Color.fromCssColorString('#ff4b00').withAlpha(.95),outline:false}});
+ fireCoreEntity=viewer.entities.add({name:'Centro amarillo del fuego',position:localPosition(.2,0,ground+1.4),ellipsoid:{radii:new Cesium.Cartesian3(1.8,1.8,2.3),material:Cesium.Color.fromCssColorString('#ffd23f').withAlpha(.96),outline:false}});
  crashStarted=performance.now();
 }
 function updateCrashEffects(dt,now){
  const elapsed=(now-crashStarted)/1000;
- for(const d of debrisPieces){d.vz-=9.81*dt;d.x+=d.vx*dt;d.y+=d.vy*dt;d.z+=d.vz*dt;if(d.z<groundHeight+.3){d.z=groundHeight+.3;d.vz=0;d.vx*=.82;d.vy*=.82;}d.angle+=d.spin*dt;const p=localPosition(d.x,d.y,d.z);d.entity.position=p;d.entity.orientation=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading+d.angle,d.angle*.5,d.angle*.3));}
- for(const s of smokePuffs){s.age+=dt;const scale=1+s.age*.65;const p=localPosition(Math.sin(s.age+s.offset)*.9,Math.cos(s.age+s.offset)*.9,groundHeight+2+s.age*2.4);s.entity.position=p;s.entity.ellipsoid.radii=new Cesium.Cartesian3(2.2*scale,2.2*scale,2.8*scale);s.entity.ellipsoid.material=Cesium.Color.fromCssColorString('#25282b').withAlpha(Math.max(0,.78-s.age*.065));}
- if(fireEntity){fireEntity.position=localPosition(0,0,groundHeight+1.5);fireEntity.ellipsoid.material=Cesium.Color.fromCssColorString(elapsed<2?'#ff6a00':'#a83216').withAlpha(Math.max(0,.8-elapsed*.09));fireEntity.ellipsoid.radii=new Cesium.Cartesian3(2.1+Math.min(2,elapsed),2.1+Math.min(2,elapsed),1.8+Math.min(2,elapsed));if(fireEntity){fireEntity.position=localPosition(0,0,groundHeight+2);fireEntity.ellipsoid.material=Cesium.Color.fromCssColorString(elapsed<2?'#ff4b00':'#a83216').withAlpha(Math.max(0,.95-elapsed*.085));fireEntity.ellipsoid.radii=new Cesium.Cartesian3(3.4+Math.min(2,elapsed),3.4+Math.min(2,elapsed),3.8+Math.min(2,elapsed));}if(fireCoreEntity){fireCoreEntity.position=localPosition(.2,0,groundHeight+1.4);fireCoreEntity.ellipsoid.material=Cesium.Color.fromCssColorString('#ffd23f').withAlpha(Math.max(0,.96-elapsed*.11));fireCoreEntity.ellipsoid.radii=new Cesium.Cartesian3(1.8+Math.sin(now*.025)*.25,1.8+Math.sin(now*.025)*.25,2.3+Math.sin(now*.025)*.35);}if(elapsed>10){if(fireEntity)viewer.entities.remove(fireEntity);if(fireCoreEntity)viewer.entities.remove(fireCoreEntity);fireEntity=null;fireCoreEntity=null;}}
+ for(const d of debrisPieces){
+  d.vz-=9.81*dt;d.x+=d.vx*dt;d.y+=d.vy*dt;d.z+=d.vz*dt;
+  if(d.z<groundHeight+.3){d.z=groundHeight+.3;d.vz=0;d.vx*=.82;d.vy*=.82;}
+  d.angle+=d.spin*dt;const p=localPosition(d.x,d.y,d.z);d.entity.position=p;
+  d.entity.orientation=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading+d.angle,d.angle*.5,d.angle*.3));
+ }
+ for(const s of smokePuffs){
+  s.age+=dt;const scale=1+s.age*.65;
+  s.entity.position=localPosition(Math.sin(s.age+s.offset)*.9,Math.cos(s.age+s.offset)*.9,groundHeight+2+s.age*2.4);
+  s.entity.ellipsoid.radii=new Cesium.Cartesian3(2.2*scale,2.2*scale,2.8*scale);
+  s.entity.ellipsoid.material=Cesium.Color.fromCssColorString('#25282b').withAlpha(Math.max(0,.78-s.age*.065));
+ }
+ if(fireEntity){
+  fireEntity.position=localPosition(0,0,groundHeight+2);
+  fireEntity.ellipsoid.material=Cesium.Color.fromCssColorString(elapsed<2?'#ff4b00':'#a83216').withAlpha(Math.max(0,.95-elapsed*.085));
+  fireEntity.ellipsoid.radii=new Cesium.Cartesian3(3.4+Math.min(2,elapsed),3.4+Math.min(2,elapsed),3.8+Math.min(2,elapsed));
+ }
+ if(fireCoreEntity){
+  fireCoreEntity.position=localPosition(.2,0,groundHeight+1.4);
+  fireCoreEntity.ellipsoid.material=Cesium.Color.fromCssColorString('#ffd23f').withAlpha(Math.max(0,.96-elapsed*.11));
+  fireCoreEntity.ellipsoid.radii=new Cesium.Cartesian3(1.8+Math.sin(now*.025)*.25,1.8+Math.sin(now*.025)*.25,2.3+Math.sin(now*.025)*.35);
+ }
+ if(elapsed>10){
+  if(fireEntity)viewer.entities.remove(fireEntity);
+  if(fireCoreEntity)viewer.entities.remove(fireCoreEntity);
+  fireEntity=null;fireCoreEntity=null;
+ }
 }
 function reset(){if(window.AeroAudio)AeroAudio.reset();clearCrashEffects();collisionLocked=false;lat=start.lat;lon=start.lon;altitude=start.alt;speed=0;pitch=0;roll=0;heading=0;throttle=0;health=100;crashed=false;landed=true;gear=true;flightPathAngle=0;pitchRate=0;rollRate=0;
  if(aircraft)viewer.entities.remove(aircraft);for(const part of hitboxParts)viewer.entities.remove(part.entity);hitboxParts=[];makePlane();viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(lon,lat,altitude+45),orientation:{heading:0,pitch:-.16,roll:0},duration:1.5});
