@@ -10,7 +10,8 @@ html,body,#cesiumContainer{width:100%;height:100%;margin:0;overflow:hidden;backg
 #hud{top:12px;left:12px;min-width:190px}#help{top:12px;right:12px;max-width:220px}#bottom{left:12px;bottom:12px;max-width:min(500px,calc(100vw - 24px))}#debugPanel{top:12px;left:50%;transform:translateX(-50%);width:min(330px,calc(100vw - 32px));font:12px/1.5 ui-monospace,monospace;max-height:45vh;overflow:auto}#debugPanel b{color:#7ef9ff}#debugPanel .debugGrid{display:grid;grid-template-columns:1fr auto;gap:2px 12px}
 button,select{background:#16466b;color:white;border:1px solid #5a9fc8;border-radius:8px;padding:7px 10px;cursor:pointer;margin:3px}
 .muted{color:#9eb5c8}.warn{color:#ffbd73}.good{color:#9fe4ff}#message{font-size:16px;font-weight:700}
-@media(max-width:600px){#help{top:auto;bottom:12px;right:12px;max-width:160px;font-size:11px}#bottom{bottom:125px;font-size:12px}#hud{font-size:12px;min-width:150px}}
+#multiplayer{top:150px;left:12px;max-width:260px}#roomCode{width:100px;min-width:0;background:#10283b;color:white;border:1px solid #5a9fc8;border-radius:7px;padding:7px}#mpStatus{font-size:12px;color:#9fe4ff}
+@media(max-width:600px){#help{top:auto;bottom:12px;right:12px;max-width:160px;font-size:11px}#bottom{bottom:125px;font-size:12px}#hud{font-size:12px;min-width:150px}#multiplayer{top:190px;left:8px;max-width:210px;font-size:12px}}
 </style>
 </head>
 <body>
@@ -21,6 +22,7 @@ Potencia: <span id="power">55</span>%<br>Inclinación: <span id="bank">0</span>�
 Hora: <span id="clock">--:--:--</span><br>Ambiente: <span id="phase">Día</span><br>Integridad: <span id="health">100</span>%<br>Altura del suelo: <span id="ground">0</span> m<br>Posición: <span id="coords">13.7, -89.1</span></div>
 <div class="panel" id="help"><b>CONTROLES</b><br><span class="muted">W / S</span> Cabeceo<br><span class="muted">A / D</span> Alabeo<br><span class="muted">0–9</span> Potencia (0–100%)<br><span class="muted">Espacio</span> Frenar<br><span class="muted">↑ / ↓</span> Ajustar potencia<br><span class="muted">G</span> Tren<br><span class="muted">C</span> Recentrar cámara<br><span class="muted">R</span> Reiniciar</div>
 <div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="home">Ir a Ilopango</button><button id="map">Seguir avión</button><button id="satellite">Satélite</button><button id="debugToggle" aria-pressed="false">Debug: OFF (F3)</button><span id="hitboxStatus" class="good" style="display:inline-block;padding:7px 10px;margin:3px;font-weight:700">Hitbox 3D: INVISIBLE</span><button id="daynight">Pausar ciclo</button></div>
+<div class="panel" id="multiplayer"><b>MULTIJUGADOR</b><br><input id="roomCode" maxlength="12" placeholder="Código sala" aria-label="Código de sala"><button id="createRoom">Crear sala</button><button id="joinRoom">Unirse</button><div id="mpStatus">Desconectado · requiere internet</div><small class="muted">Comparte el código con tus amigos.</small></div>
 <div class="panel" id="debugPanel" style="display:none"><b>DEBUG · AEROSIM</b><div class="debugGrid">
 <span>FPS estimados</span><span id="dbgFps">—</span>
 <span>Estado</span><span id="dbgState">—</span>
@@ -39,6 +41,7 @@ Hora: <span id="clock">--:--:--</span><br>Ambiente: <span id="phase">Día</span>
 <span>Coordenadas</span><span id="dbgCoords">—</span>
 </div><div class="muted">Valores de diagnóstico aproximados; la hitbox no es una malla de colisión exacta.</div></div>
 <script src="https://cesium.com/downloads/cesiumjs/releases/1.127/Build/Cesium/Cesium.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="./flight-physics.js"></script>
 <script>
 (async()=>{
@@ -79,6 +82,18 @@ viewer.scene.screenSpaceCameraController.maximumZoomDistance=25000000;
 const keys={};let throttle=0,pitch=0,roll=0,heading=0,speed=0,altitude=620,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,landed=true,last=performance.now(),aircraft,hitboxParts=[],hitboxVisible=true,groundHeight=618,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false,rho:1.225,gravity:9.80665,verticalSpeed:0},debrisPieces=[],smokePuffs=[],fireEntity=null,crashStarted=0,debugMode=false,debugFps=0;
 const radians=Math.PI/180;
 const start={lat:13.6995,lon:-89.1198,alt:620};
+let mpPeer=null,mpHost=false,mpRoom='',mpConnections=new Map(),remotePlanes=new Map(),mpLastSend=0,collisionLocked=false;
+function mpStatus(s){$('mpStatus').textContent=s;}
+function mpSend(conn,msg){try{if(conn&&conn.open)conn.send(msg);}catch(e){console.warn('Multijugador send:',e);}}
+function mpBroadcast(msg,except=null){for(const [id,conn] of mpConnections){if(id!==except)mpSend(conn,msg);}}
+function mpState(){return {lat,lon,altitude,heading,pitch,roll,speed,crashed,landed,throttle};}
+function mpSetupConnection(conn){mpConnections.set(conn.peer,conn);conn.on('open',()=>{mpStatus((mpHost?'Sala creada':'Conectado a sala')+' · jugadores: '+mpConnections.size);mpSend(conn,{type:'state',id:mpPeer.id,state:mpState()});});conn.on('data',msg=>{if(!msg||typeof msg!=='object')return;if(mpHost){if(msg.type==='state'){mpReceiveState(conn.peer,msg.state);mpBroadcast({type:'state',id:conn.peer,state:msg.state},conn.peer);}else if(msg.type==='crash'){mpBroadcast({type:'crash',id:msg.id});}}else if(msg.type==='state'){mpReceiveState(msg.id,msg.state);}else if(msg.type==='crash'){const p=remotePlanes.get(msg.id);if(p)p.state.crashed=true;}});conn.on('close',()=>{mpConnections.delete(conn.peer);removeRemotePlane(conn.peer);mpStatus('Jugador desconectado · jugadores: '+mpConnections.size);});conn.on('error',e=>console.warn('Peer connection:',e));}
+function mpReceiveState(id,s){if(!s||id===mpPeer?.id)return;let p=remotePlanes.get(id);if(!p){const pos=Cesium.Cartesian3.fromDegrees(s.lon,s.lat,s.altitude);const entity=viewer.entities.add({name:'Avión multijugador '+id,position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(s.heading-Cesium.Math.PI_OVER_TWO,s.pitch,s.roll)),model:{uri:'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',minimumPixelSize:48,maximumScale:400},label:{text:'Piloto '+id.slice(-4),font:'12px sans-serif',fillColor:Cesium.Color.LIME,outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,verticalOrigin:Cesium.VerticalOrigin.BOTTOM,pixelOffset:new Cesium.Cartesian2(0,-20)}});p={entity,state:s};remotePlanes.set(id,p);}p.state=s;p.entity.position=Cesium.Cartesian3.fromDegrees(s.lon,s.lat,s.altitude);p.entity.orientation=Cesium.Transforms.headingPitchRollQuaternion(p.entity.position,new Cesium.HeadingPitchRoll(s.heading-Cesium.Math.PI_OVER_TWO,s.pitch,s.roll));if(s.crashed)p.entity.model.show=false;}
+function removeRemotePlane(id){const p=remotePlanes.get(id);if(p)viewer.entities.remove(p.entity);remotePlanes.delete(id);}
+function mpCleanup(){if(mpPeer){try{mpPeer.destroy();}catch(e){}}mpPeer=null;mpHost=false;mpRoom='';mpConnections.clear();for(const id of [...remotePlanes.keys()])removeRemotePlane(id);}
+function mpCreateRoom(){if(!window.Peer){mpStatus('No cargó PeerJS; revisa internet.');return;}mpCleanup();mpRoom=($('roomCode').value.trim().toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,12))||Math.random().toString(36).slice(2,8);$('roomCode').value=mpRoom;mpStatus('Creando sala '+mpRoom+'…');mpPeer=new Peer('aerosim-'+mpRoom);mpPeer.on('open',()=>{mpHost=true;mpStatus('Sala '+mpRoom+' lista · comparte el código');});mpPeer.on('connection',conn=>mpSetupConnection(conn));mpPeer.on('error',e=>{console.error(e);mpStatus(e.type==='unavailable-id'?'Ese código ya está en uso: únete a la sala existente.':'Error de conexión: '+e.type);});}
+function mpJoinRoom(){if(!window.Peer){mpStatus('No cargó PeerJS; revisa internet.');return;}const room=$('roomCode').value.trim().toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,12);if(!room){mpStatus('Escribe el código que te compartieron.');return;}mpCleanup();mpRoom=room;mpStatus('Conectando a sala '+room+'…');mpPeer=new Peer();mpPeer.on('open',()=>{const conn=mpPeer.connect('aerosim-'+room,{reliable:true});mpSetupConnection(conn);});mpPeer.on('error',e=>{console.error(e);mpStatus('No se pudo conectar: '+e.type+'. Comprueba el código y que el anfitrión siga conectado.');});}
+$('createRoom').onclick=mpCreateRoom;$('joinRoom').onclick=mpJoinRoom;
 function setMessage(a,b,cls='good'){$('message').textContent=a;$('message').className=cls;$('detail').textContent=b}
 let satelliteLayer=null;
 async function enableSatellite(){
@@ -169,7 +184,7 @@ function updateCrashEffects(dt,now){
  for(const s of smokePuffs){s.age+=dt;const scale=1+s.age*.65;const p=localPosition(Math.sin(s.age+s.offset)*.6,Math.cos(s.age+s.offset)*.6,groundHeight+2+s.age*2);s.entity.position=p;s.entity.ellipsoid.radii=new Cesium.Cartesian3(1.4*scale,1.4*scale,1.7*scale);s.entity.ellipsoid.material=Cesium.Color.fromCssColorString('#292d31').withAlpha(Math.max(0,.62-s.age*.075));}
  if(fireEntity){fireEntity.position=localPosition(0,0,groundHeight+1.5);fireEntity.ellipsoid.material=Cesium.Color.fromCssColorString(elapsed<2?'#ff6a00':'#a83216').withAlpha(Math.max(0,.8-elapsed*.09));fireEntity.ellipsoid.radii=new Cesium.Cartesian3(2.1+Math.min(2,elapsed),2.1+Math.min(2,elapsed),1.8+Math.min(2,elapsed));if(elapsed>10){viewer.entities.remove(fireEntity);fireEntity=null;}}
 }
-function reset(){clearCrashEffects();lat=start.lat;lon=start.lon;altitude=start.alt;speed=0;pitch=0;roll=0;heading=0;throttle=0;health=100;crashed=false;landed=true;gear=true;flightPathAngle=0;pitchRate=0;rollRate=0;
+function reset(){clearCrashEffects();collisionLocked=false;lat=start.lat;lon=start.lon;altitude=start.alt;speed=0;pitch=0;roll=0;heading=0;throttle=0;health=100;crashed=false;landed=true;gear=true;flightPathAngle=0;pitchRate=0;rollRate=0;
  if(aircraft)viewer.entities.remove(aircraft);for(const part of hitboxParts)viewer.entities.remove(part.entity);hitboxParts=[];makePlane();viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(lon,lat,altitude+45),orientation:{heading:0,pitch:-.16,roll:0},duration:1.5});
  setMessage('En pista · listo para despegar','Estás en el suelo en Ilopango. Mantén ↑ para aumentar potencia y velocidad; usa W/S y A/D en vuelo.');}
 $('reset').onclick=reset;
@@ -179,6 +194,8 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=true;if(['Arr
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 viewer.camera.moveEnd.addEventListener(()=>{});
 function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000,.05);last=now;if(dt>0)debugFps=debugFps?debugFps*.9+(1/dt)*.1:1/dt; if(!viewer.isDestroyed())viewer.scene.requestRender();
+ if(mpPeer&&mpPeer.open&&now-mpLastSend>100){const state=mpState();if(mpHost){mpBroadcast({type:'state',id:mpPeer.id,state});}else{for(const conn of mpConnections.values())mpSend(conn,{type:'state',state});}mpLastSend=now;}
+ if(!crashed&&!landed&&!collisionLocked){for(const [id,p] of remotePlanes){const s=p.state;const north=(s.lat-lat)*111320;const east=(s.lon-lon)*111320*Math.cos(lat*radians);const horizontal=Math.hypot(north,east);if(horizontal<10&&Math.abs(s.altitude-altitude)<7&&speed>25&&s.speed>25){collisionLocked=true;health=0;crashed=true;landed=false;destroyAircraft();setMessage('¡COLISIÓN MULTIJUGADOR!','Chocaste con el avión de otro jugador. Pulsa R para reiniciar.','warn');if(mpHost)mpBroadcast({type:'crash',id:mpPeer.id});else for(const conn of mpConnections.values())mpSend(conn,{type:'crash',id:mpPeer.id});break;}}}
  groundHeight=viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(lon,lat)) ?? groundHeight;
  if(landed&&!crashed){
   if(keys.arrowup)throttle=Math.min(1,throttle+dt*.7);if(keys.arrowdown)throttle=Math.max(0,throttle-dt*.7);
