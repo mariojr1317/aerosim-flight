@@ -20,11 +20,11 @@ Velocidad: <span id="speed">0</span> km/h<br>Velocidad vertical: <span id="vspee
 Potencia: <span id="power">55</span>%<br>Inclinación: <span id="bank">0</span>°<br>Densidad del aire: <span id="air">1.225</span> kg/m³<br>Gravedad: <span id="gravity">9.81</span> m/s²<br>
 Hora: <span id="clock">--:--:--</span><br>Ambiente: <span id="phase">Día</span><br>Integridad: <span id="health">100</span>%<br>Altura del suelo: <span id="ground">0</span> m<br>Posición: <span id="coords">13.7, -89.1</span></div>
 <div class="panel" id="help"><b>CONTROLES</b><br><span class="muted">W / S</span> Cabeceo<br><span class="muted">A / D</span> Alabeo<br><span class="muted">↑ / ↓</span> Potencia<br><span class="muted">G</span> Tren<br><span class="muted">C</span> Recentrar cámara<br><span class="muted">R</span> Reiniciar</div>
-<div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="home">Ir a Ilopango</button><button id="map">Seguir avión</button><button id="satellite">Satélite</button><button id="debugToggle" aria-pressed="false">Debug: OFF (F3)</button><span id="hitboxStatus" class="good" style="display:inline-block;padding:7px 10px;margin:3px;font-weight:700">Hitbox 3D: SIEMPRE ACTIVA</span><button id="daynight">Pausar ciclo</button></div>
+<div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="home">Ir a Ilopango</button><button id="map">Seguir avión</button><button id="satellite">Satélite</button><button id="debugToggle" aria-pressed="false">Debug: OFF (F3)</button><span id="hitboxStatus" class="good" style="display:inline-block;padding:7px 10px;margin:3px;font-weight:700">Hitbox 3D: INVISIBLE</span><button id="daynight">Pausar ciclo</button></div>
 <div class="panel" id="debugPanel" style="display:none"><b>DEBUG · AEROSIM</b><div class="debugGrid">
 <span>FPS estimados</span><span id="dbgFps">—</span>
 <span>Estado</span><span id="dbgState">—</span>
-<span>Hitbox 3D</span><span id="dbgParts">—</span>
+<span>Volúmenes hitbox (invisibles)</span><span id="dbgParts">—</span>
 <span>Velocidad / IAS aprox.</span><span id="dbgSpeed">—</span>
 <span>Ángulo de ataque</span><span id="dbgAlpha">—</span>
 <span>Sustentación</span><span id="dbgLift">—</span>
@@ -99,11 +99,11 @@ function setDebugMode(enabled){
  $('debugPanel').style.display=debugMode?'block':'none';
  $('debugToggle').textContent='Debug: '+(debugMode?'ON':'OFF')+' (F3)';
  $('debugToggle').setAttribute('aria-pressed',String(debugMode));
- if(debugMode)setMessage('Modo debug activado','Observa las variables de vuelo y los volúmenes cian mientras pruebas cambios.');
+ if(debugMode)setMessage('Modo debug activado','Observa las variables de vuelo; las hitboxes permanecen invisibles.');
 }
 $('debugToggle').onclick=()=>setDebugMode(!debugMode);
 $('daynight').onclick=()=>{viewer.clock.shouldAnimate=!viewer.clock.shouldAnimate;$('daynight').textContent=viewer.clock.shouldAnimate?'Pausar ciclo':'Reanudar ciclo';setMessage(viewer.clock.shouldAnimate?'Ciclo día/noche activo':'Ciclo día/noche pausado',viewer.clock.shouldAnimate?'La iluminación sigue la posición del Sol y cambia con la hora simulada.':'La hora y la iluminación se mantienen fijas hasta reanudar.');};
-// La hitbox 3D permanece visible siempre; no existe control para desactivarla.
+// Los volúmenes de hitbox se mantienen calculados, pero nunca se dibujan en pantalla.
 function makePlane(){
  const position=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
  const orientation=Cesium.Transforms.headingPitchRollQuaternion(position,new Cesium.HeadingPitchRoll(heading,pitch,roll));
@@ -136,7 +136,7 @@ function makePlane(){
   const geometry=shape.kind==='box'
    ? {box:{dimensions:shape.dimensions,material:cyan,outline:true,outlineColor:edge}}
    : {ellipsoid:{radii:shape.radii,material:cyan,outline:true,outlineColor:edge}};
-  const entity=viewer.entities.add({name:'Hitbox 3D · '+shape.name,position:partPos,orientation,show:true,...geometry});
+  const entity=viewer.entities.add({name:'Hitbox 3D · '+shape.name,position:partPos,orientation,show:false,...geometry});
   hitboxParts.push({entity,offset:shape.offset});
  }
 }
@@ -203,7 +203,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
 }
  if(physicsData.stall&&altitude>100){setMessage('AVISO: PÉRDIDA DE SUSTENTACIÓN','Reduce el ángulo de ataque y aumenta potencia para recuperar velocidad.','warn');}
  }
- if(aircraft){const p=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);const q=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading,pitch,roll));aircraft.position=p;aircraft.orientation=q;const rot=Cesium.Matrix3.fromQuaternion(q);for(const part of hitboxParts){const offset=Cesium.Matrix3.multiplyByVector(rot,part.offset,new Cesium.Cartesian3());part.entity.position=Cesium.Cartesian3.add(p,offset,new Cesium.Cartesian3());part.entity.orientation=q;part.entity.show=true;}}
+ if(aircraft){const p=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);const q=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading,pitch,roll));aircraft.position=p;aircraft.orientation=q;const rot=Cesium.Matrix3.fromQuaternion(q);for(const part of hitboxParts){const offset=Cesium.Matrix3.multiplyByVector(rot,part.offset,new Cesium.Cartesian3());part.entity.position=Cesium.Cartesian3.add(p,offset,new Cesium.Cartesian3());part.entity.orientation=q;part.entity.show=false;}}
  if(crashed&&debrisPieces.length)updateCrashEffects(dt,now);
  follow=true;
  const cameraTarget=crashed?localPosition(0,0,groundHeight+3):Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
@@ -213,7 +213,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
   const fmt=(v,d=1)=>Number.isFinite(v)?v.toFixed(d):'—';
   $('dbgFps').textContent=fmt(debugFps,0);
   $('dbgState').textContent=crashed?'DESTRUIDO':landed?'EN TIERRA':physicsData.stall?'PÉRDIDA':'EN VUELO';
-  $('dbgParts').textContent=String(hitboxParts.length)+' volúmenes visibles';
+  $('dbgParts').textContent=String(hitboxParts.length)+' volúmenes invisibles';
   $('dbgSpeed').textContent=fmt(speed/3.6,1)+' m/s';
   $('dbgAlpha').textContent=fmt((physicsData.alpha||0)*180/Math.PI,2)+'°';
   $('dbgLift').textContent=fmt((physicsData.lift||0)/1000,2)+' kN';
