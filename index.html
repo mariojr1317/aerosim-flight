@@ -7,7 +7,7 @@
 <style>
 html,body,#cesiumContainer{width:100%;height:100%;margin:0;overflow:hidden;background:#07111c;font-family:system-ui,Arial;color:#eef7ff}
 .panel{position:absolute;z-index:5;background:#07111cdd;border:1px solid #ffffff35;border-radius:12px;padding:12px;backdrop-filter:blur(8px);line-height:1.6}
-#hud{top:12px;left:12px;min-width:190px}#help{top:12px;right:12px;max-width:220px}#bottom{left:12px;bottom:12px;max-width:min(500px,calc(100vw - 24px))}#debugPanel{top:12px;left:50%;transform:translateX(-50%);width:min(330px,calc(100vw - 32px));font:12px/1.5 ui-monospace,monospace;max-height:45vh;overflow:auto}#debugPanel b{color:#7ef9ff}#debugPanel .debugGrid{display:grid;grid-template-columns:1fr auto;gap:2px 12px}
+#hud{top:12px;left:12px;min-width:190px}#help{top:12px;right:12px;max-width:220px}#bottom{left:12px;bottom:12px;max-width:min(620px,calc(100vw - 24px))}#takeoffHint{display:block;color:#9fe4ff;font-size:12px}#debugPanel{top:12px;left:50%;transform:translateX(-50%);width:min(330px,calc(100vw - 32px));font:12px/1.5 ui-monospace,monospace;max-height:45vh;overflow:auto}#debugPanel b{color:#7ef9ff}#debugPanel .debugGrid{display:grid;grid-template-columns:1fr auto;gap:2px 12px}
 button,select{background:#16466b;color:white;border:1px solid #5a9fc8;border-radius:8px;padding:7px 10px;cursor:pointer;margin:3px}
 .muted{color:#9eb5c8}.warn{color:#ffbd73}.good{color:#9fe4ff}#message{font-size:16px;font-weight:700}
 #multiplayer{top:150px;left:12px;max-width:260px}#audioPanel{top:250px;right:12px;width:280px;max-height:55vh;overflow:auto;font-size:12px}#audioPanel label{display:block;margin-top:5px;color:#c5d7e5}#audioPanel input[type=range]{width:100%;margin:3px 0}#audioPanel select,#audioPanel button{max-width:100%;font-size:12px}#audioPanel input[type=file]{width:100%;font-size:11px}#mp3List{max-height:54px;overflow:auto;word-break:break-word;color:#b8cddd;font-size:11px}#mpStatus{font-size:12px;color:#9fe4ff}
@@ -21,7 +21,7 @@ Velocidad: <span id="speed">0</span> km/h<br>Velocidad vertical: <span id="vspee
 Potencia: <span id="power">55</span>%<br>Inclinación: <span id="bank">0</span>°<br>Densidad del aire: <span id="air">1.225</span> kg/m³<br>Gravedad: <span id="gravity">9.81</span> m/s²<br>
 Hora: <span id="clock">--:--:--</span><br>Ambiente: <span id="phase">Día</span><br>Integridad: <span id="health">100</span>%<br>Altura del suelo: <span id="ground">0</span> m<br>Posición: <span id="coords">13.7, -89.1</span></div>
 <div class="panel" id="help"><b>CONTROLES</b><br><span class="muted">W / S</span> Cabeceo<br><span class="muted">A / D</span> Alabeo<br><span class="muted">0–9</span> Potencia (0–100%)<br><span class="muted">Espacio</span> Frenar<br><span class="muted">↑ / ↓</span> Ajustar potencia<br><span class="muted">G</span> Tren<br><span class="muted">C</span> Recentrar cámara<br><span class="muted">R</span> Reiniciar</div>
-<div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="home">Ir a Ilopango</button><button id="map">Seguir avión</button><button id="satellite">Satélite</button><button id="debugToggle" aria-pressed="false">Debug: OFF (F3)</button><span id="hitboxStatus" class="good" style="display:inline-block;padding:7px 10px;margin:3px;font-weight:700">Hitbox 3D: INVISIBLE</span><button id="daynight">Pausar ciclo</button></div>
+<div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="chooseTakeoff">📍 Elegir despegue en el mapa</button><button id="home">Ir a Ilopango</button><span id="takeoffHint">Salida actual: Ilopango · activa “Elegir despegue” y pulsa en el mapa</span><button id="map">Seguir avión</button><button id="satellite">Satélite</button><button id="debugToggle" aria-pressed="false">Debug: OFF (F3)</button><span id="hitboxStatus" class="good" style="display:inline-block;padding:7px 10px;margin:3px;font-weight:700">Hitbox 3D: INVISIBLE</span><button id="daynight">Pausar ciclo</button></div>
 <div class="panel" id="multiplayer"><b>MUNDO MULTIJUGADOR</b><br><div id="mpStatus">Conectando al mundo global…</div><small class="muted">Conexión automática · requiere internet</small></div>
 <div class="panel" id="audioPanel"><b>🎧 RADIO Y AUDIO DE CABINA</b><br><button id="soundEnable">🔊 Activar sonido del avión</button>
 <label for="radioStation">Radios cercanas a la zona del avión</label><button id="radioNearby" type="button">📡 Radios cercanas</button><select id="radioStation" style="width:100%"><option value="https://streaming.mundoclasicaupa.com:8001/radioelmundo">Radio El Mundo · 93.7 FM</option><option value="https://streaming.rcs.com.sv/proxy/abc/stream">ABC · 100.1 FM</option><option value="https://streaming.rcs.com.sv/proxy/urbana/stream">La Urbana · 94.9 FM</option><option value="https://media.dominiocreativo.com:8000/stream/1/">Radio YSKL · 104.1 FM</option><option value="https://streaming.rcs.com.sv/proxy/astral/stream">Radio Astral · 102.9 FM</option><option value="https://fast.citrus3.com:8314/stream">Radio YSUCA · 91.7 FM</option><option value="https://streaming.rcs.com.sv/proxy/chevere/stream">Radio La Chévere · 100.9 FM</option><option value="https://s2.radio.co/s3a7dc3d82/listen">Radio Bautista</option><option value="https://cloudstream2036.conectarhosting.com/8168/stream">Radio Verdad · 95.7 FM</option><option value="https://c11.radioboss.fm:8303/stream">Radio Rumba Latina</option><option value="https://streamer.radio.co/s3a3c12873/listen">La Tribu FM</option><option value="https://stream20.usastreams.com/8138/stream">100.7 Stereo</option><option value="https://surfmradio.com/">SUR FM · 105.3 FM</option></select>
@@ -94,6 +94,7 @@ viewer.scene.screenSpaceCameraController.maximumZoomDistance=25000000;
 const keys={};let throttle=0,pitch=0,roll=0,heading=0,speed=0,altitude=620,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,landed=true,last=performance.now(),aircraft,hitboxParts=[],hitboxVisible=true,groundHeight=618,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false,rho:1.225,gravity:9.80665,verticalSpeed:0},debrisPieces=[],smokePuffs=[],explosionEffects=[],explosionFlash=null,fireEntity=null,fireCoreEntity=null,crashStarted=0,debugMode=false,debugFps=0;
 const radians=Math.PI/180;
 const start={lat:13.6995,lon:-89.1198,alt:620};
+let choosingTakeoff=false,takeoffMarker=null;
 const WORLD_PEER_ID='aerosim-public-world-v1';
 let mpPeer=null,mpHost=false,mpConnections=new Map(),remotePlanes=new Map(),mpLastSend=0,collisionLocked=false,mpReconnectPending=false;
 function mpStatus(s){$('mpStatus').textContent=s;}
@@ -324,11 +325,38 @@ function updateCrashEffects(dt,now){
   fireEntity=null;fireCoreEntity=null;
  }
 }
-function reset(){if(window.AeroAudio)AeroAudio.reset();clearCrashEffects();collisionLocked=false;lat=start.lat;lon=start.lon;altitude=start.alt;speed=0;pitch=0;roll=0;heading=0;throttle=0;health=100;crashed=false;landed=true;gear=true;flightPathAngle=0;pitchRate=0;rollRate=0;
+function reset(){if(window.AeroAudio)AeroAudio.reset();clearCrashEffects();collisionLocked=false;lat=start.lat;lon=start.lon;altitude=start.alt;groundHeight=Math.max(0,start.alt-2);speed=0;pitch=0;roll=0;heading=0;throttle=0;health=100;crashed=false;landed=true;gear=true;flightPathAngle=0;pitchRate=0;rollRate=0;
  if(aircraft)viewer.entities.remove(aircraft);for(const part of hitboxParts)viewer.entities.remove(part.entity);hitboxParts=[];makePlane();viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(lon,lat,altitude+45),orientation:{heading:0,pitch:-.16,roll:0},duration:1.5});
- setMessage('En pista · listo para despegar','Estás en el suelo en Ilopango. Mantén ↑ para aumentar potencia y velocidad; usa W/S y A/D en vuelo.');}
+ setMessage('En pista · listo para despegar','Punto de salida seleccionado. Mantén ↑ para aumentar potencia y alcanzar 200 km/h; usa W/S y A/D en vuelo.');}
 $('reset').onclick=reset;
-$('home').onclick=()=>{lat=13.6995;lon=-89.1198;viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(lon,lat,altitude+250),duration:1.5});follow=true;};
+$('home').onclick=()=>{start.lat=13.6995;start.lon=-89.1198;start.alt=620;groundHeight=618;$('takeoffHint').textContent='Salida actual: Ilopango';reset();};
+$('chooseTakeoff').onclick=()=>{
+ choosingTakeoff=!choosingTakeoff;
+ $('chooseTakeoff').textContent=choosingTakeoff?'✖ Cancelar selección':'📍 Elegir despegue en el mapa';
+ setMessage(choosingTakeoff?'Selecciona el punto de despegue':'Selección cancelada',choosingTakeoff?'Haz clic en cualquier lugar del globo donde quieras iniciar. Se intentará usar la elevación del terreno.':'El punto de salida actual no ha cambiado.',choosingTakeoff?'warn':'good');
+};
+viewer.screenSpaceEventHandler.setInputAction(async click=>{
+ if(!choosingTakeoff)return;
+ let world=viewer.scene.globe.pick(viewer.camera.getPickRay(click.position),viewer.scene);
+ if(!world)world=viewer.camera.pickEllipsoid(click.position,viewer.scene.globe.ellipsoid);
+ if(!world){setMessage('No pude seleccionar ese punto','Acerca el mapa a la superficie e inténtalo de nuevo.','warn');return;}
+ const cart=Cesium.Cartographic.fromCartesian(world);
+ const newLat=Cesium.Math.toDegrees(cart.latitude),newLon=Cesium.Math.toDegrees(cart.longitude);
+ let height=viewer.scene.globe.getHeight(cart)??Math.max(0,cart.height);
+ try{
+  if(viewer.terrainProvider&&typeof viewer.terrainProvider.availability!=='undefined'){
+   const samples=await Cesium.sampleTerrainMostDetailed(viewer.terrainProvider,[Cesium.Cartographic.fromDegrees(newLon,newLat)]);
+   if(Number.isFinite(samples[0]?.height))height=samples[0].height;
+  }
+ }catch(e){console.warn('Elevación de salida no disponible; se usa la altura del globo.',e);}
+ start.lat=newLat;start.lon=newLon;start.alt=Math.max(0,height)+2;groundHeight=Math.max(0,height);
+ choosingTakeoff=false;$('chooseTakeoff').textContent='📍 Elegir despegue en el mapa';
+ $('takeoffHint').textContent='Salida elegida: '+newLat.toFixed(4)+', '+newLon.toFixed(4);
+ if(takeoffMarker)viewer.entities.remove(takeoffMarker);
+ takeoffMarker=viewer.entities.add({name:'Punto de despegue elegido',position:Cesium.Cartesian3.fromDegrees(newLon,newLat,start.alt+1),point:{pixelSize:13,color:Cesium.Color.CYAN,outlineColor:Cesium.Color.WHITE,outlineWidth:2,disableDepthTestDistance:1000000},label:{text:'DESPEGUE',font:'bold 12px sans-serif',fillColor:Cesium.Color.WHITE,outlineColor:Cesium.Color.BLACK,outlineWidth:3,style:Cesium.LabelStyle.FILL_AND_OUTLINE,verticalOrigin:Cesium.VerticalOrigin.BOTTOM,pixelOffset:new Cesium.Cartesian2(0,-16)}});
+ reset();
+ setMessage('Punto de despegue actualizado','Coordenadas: '+newLat.toFixed(4)+', '+newLon.toFixed(4)+'. Pulsa ↑ para acelerar; al llegar a 110 km/h despegará.', 'good');
+},Cesium.ScreenSpaceEventType.LEFT_CLICK);
 $('map').onclick=()=>{follow=true;viewer.camera.lookAt(Cesium.Cartesian3.fromDegrees(lon,lat,altitude),new Cesium.HeadingPitchRange(heading,-0.16,65));setMessage('Cámara cercana al avión','La cámara seguirá al avión a una distancia corta para verlo mejor.');};
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=true;if(['ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault();if(/^[0-9]$/.test(e.key)){throttle=Number(e.key)/9;setMessage('Potencia: '+Math.round(throttle*100)+'%','Usa las teclas 0–9 para elegir directamente la potencia del motor.');}if(e.key==='F3'){e.preventDefault();setDebugMode(!debugMode);}if(k==='g')gear=!gear;if(k==='r')reset();if(k==='c'){follow=true;viewer.camera.lookAt(Cesium.Cartesian3.fromDegrees(lon,lat,altitude),new Cesium.HeadingPitchRange(heading,-0.22,2400));}});
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
