@@ -30,7 +30,9 @@ Hora: <span id="clock">--:--:--</span><br>Ambiente: <span id="phase">Día</span>
 <span>Sustentación</span><span id="dbgLift">—</span>
 <span>Resistencia</span><span id="dbgDrag">—</span>
 <span>Empuje</span><span id="dbgThrust">—</span>
-<span>Presión dinámica</span><span id="dbgQbar">—</span>\n<span>Número Mach</span><span id="dbgMach">—</span>\n<span>Factor de carga</span><span id="dbgLoad">—</span>
+<span>Presión dinámica</span><span id="dbgQbar">—</span>
+<span>Número Mach</span><span id="dbgMach">—</span>
+<span>Factor de carga</span><span id="dbgLoad">—</span>
 <span>Cabeceo / alabeo</span><span id="dbgAttitude">—</span>
 <span>Rumbo</span><span id="dbgHeading">—</span>
 <span>Altura sobre suelo</span><span id="dbgClearance">—</span>
@@ -219,7 +221,9 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
   $('dbgLift').textContent=fmt((physicsData.lift||0)/1000,2)+' kN';
   $('dbgDrag').textContent=fmt((physicsData.drag||0)/1000,2)+' kN';
   $('dbgThrust').textContent=fmt((physicsData.thrust||0)/1000,2)+' kN';
-  $('dbgQbar').textContent=fmt((physicsData.qbar||0)/1000,2)+' kPa';\n  $('dbgMach').textContent=fmt(physicsData.mach||0,3);\n  $('dbgLoad').textContent=fmt(physicsData.loadFactor||0,2)+' g';
+  $('dbgQbar').textContent=fmt((physicsData.qbar||0)/1000,2)+' kPa';
+  $('dbgMach').textContent=fmt(physicsData.mach||0,3);
+  $('dbgLoad').textContent=fmt(physicsData.loadFactor||0,2)+' g';
   $('dbgAttitude').textContent=fmt(pitch*180/Math.PI,1)+'° / '+fmt(roll*180/Math.PI,1)+'°';
   $('dbgHeading').textContent=fmt(((heading*180/Math.PI)%360+360)%360,1)+'°';
   $('dbgClearance').textContent=fmt(altitude-groundHeight,1)+' m';
