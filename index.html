@@ -35,9 +35,13 @@ const osmLayer=viewer.imageryLayers.addImageryProvider(new Cesium.OpenStreetMapI
 viewer.scene.globe.enableLighting=true;
 viewer.scene.globe.depthTestAgainstTerrain=true;
 viewer.scene.backgroundColor=Cesium.Color.fromCssColorString('#07111c');
-// El mapa base se carga independientemente del proveedor de elevación.
-try{const terrain=await Cesium.CesiumTerrainProvider.fromUrl('https://terrain.reearth.land/cesium-mesh/ellipsoid',{requestVertexNormals:true,requestWaterMask:true});viewer.terrainProvider=terrain;setMessage('Terreno 3D conectado','Relieve mundial cargado. Preparando las imágenes del mapa…');}catch(err){console.warn('Proveedor de terreno no disponible:',err);setMessage('Terreno 3D no disponible','El mapa sigue funcionando con relieve plano. Las imágenes satelitales pueden seguir cargándose.','warn');}
+// Posiciona la cámara inmediatamente; no esperes a que cargue el terreno.
+viewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(-89.1198,13.6995,1800000)});
 viewer.scene.screenSpaceCameraController.minimumZoomDistance=20;
+// El terreno se carga en segundo plano para que un servidor lento no congele la inicialización.
+Cesium.CesiumTerrainProvider.fromUrl('https://terrain.reearth.land/cesium-mesh/ellipsoid',{requestVertexNormals:true,requestWaterMask:true})
+ .then(terrain=>{viewer.terrainProvider=terrain;console.info('Terreno 3D conectado');})
+ .catch(err=>{console.warn('Terreno 3D no disponible; se mantiene el globo base:',err);});
 viewer.scene.screenSpaceCameraController.maximumZoomDistance=25000000;
 const keys={};let throttle=.55,pitch=.08,roll=0,heading=0,speed=145,altitude=900,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,last=performance.now(),aircraft,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false};
 const radians=Math.PI/180;
@@ -97,8 +101,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  $('speed').textContent=Math.round(speed);$('alt').textContent=Math.round(altitude);$('power').textContent=Math.round(throttle*100);$('bank').textContent=Math.round(roll*57.3);$('health').textContent=health;$('coords').textContent=lat.toFixed(3)+', '+lon.toFixed(3);
 }
 reset();requestAnimationFrame(tick);
-setMessage('Mundo 3D cargado','Globo Cesium con terreno 3D abierto. Pulsa «Satélite» para activar imágenes aéreas.');
-enableSatellite();
+setMessage('Mapa Cesium listo','El mapa base debería aparecer primero. Pulsa «Satélite» para intentar activar imágenes aéreas.');
 })();
 </script>
 </body></html>
