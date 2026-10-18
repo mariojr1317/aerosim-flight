@@ -131,7 +131,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  groundHeight=viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(lon,lat)) ?? groundHeight;
  if(landed&&!crashed){
   if(keys.arrowup)throttle=Math.min(1,throttle+dt*.7);if(keys.arrowdown)throttle=Math.max(0,throttle-dt*.7);
-  speed=Math.max(0,Math.min(150,speed+(throttle*24-5)*dt));altitude=groundHeight+2;pitch=0;roll=0;flightPathAngle=0;
+  const groundAcceleration=throttle*9-2.5;speed=Math.max(0,Math.min(150,speed+groundAcceleration*dt));altitude=groundHeight+2;pitch=0;roll=0;flightPathAngle=0;
   lat+=Math.cos(heading)*(speed/3.6)*dt/111320;lon+=Math.sin(heading)*(speed/3.6)*dt/(111320*Math.max(.15,Math.cos(lat*radians)));
   if(speed>95&&throttle>.7){landed=false;setMessage('Carrera de despegue','Aumenta velocidad y mantén el avión alineado.');}
  }
