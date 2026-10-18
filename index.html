@@ -20,7 +20,7 @@ Velocidad: <span id="speed">0</span> km/h<br>Velocidad vertical: <span id="vspee
 Potencia: <span id="power">55</span>%<br>Inclinación: <span id="bank">0</span>°<br>Densidad del aire: <span id="air">1.225</span> kg/m³<br>Gravedad: <span id="gravity">9.81</span> m/s²<br>
 Hora: <span id="clock">--:--:--</span><br>Ambiente: <span id="phase">Día</span><br>Integridad: <span id="health">100</span>%<br>Altura del suelo: <span id="ground">0</span> m<br>Posición: <span id="coords">13.7, -89.1</span></div>
 <div class="panel" id="help"><b>CONTROLES</b><br><span class="muted">W / S</span> Cabeceo<br><span class="muted">A / D</span> Alabeo<br><span class="muted">↑ / ↓</span> Potencia<br><span class="muted">G</span> Tren<br><span class="muted">C</span> Recentrar cámara<br><span class="muted">R</span> Reiniciar</div>
-<div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="home">Ir a Ilopango</button><button id="map">Seguir avión</button><button id="satellite">Satélite</button><button id="hitbox">Hitbox 3D: OFF</button><button id="daynight">Pausar ciclo</button></div>
+<div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="home">Ir a Ilopango</button><button id="map">Seguir avión</button><button id="satellite">Satélite</button><span id="hitboxStatus" class="good" style="display:inline-block;padding:7px 10px;margin:3px;font-weight:700">Hitbox 3D: SIEMPRE ACTIVA</span><button id="daynight">Pausar ciclo</button></div>
 <script src="https://cesium.com/downloads/cesiumjs/releases/1.127/Build/Cesium/Cesium.js"></script>
 <script src="./flight-physics.js"></script>
 <script>
@@ -59,7 +59,7 @@ Cesium.CesiumTerrainProvider.fromUrl('https://terrain.reearth.land/cesium-mesh/e
  .then(async terrain=>{viewer.terrainProvider=terrain;console.info('Terreno 3D conectado');try{const sample=await Cesium.sampleTerrainMostDetailed(terrain,[Cesium.Cartographic.fromDegrees(start.lon,start.lat)]);if(Number.isFinite(sample[0].height)){groundHeight=sample[0].height;start.alt=groundHeight+2;if(landed&&!crashed)altitude=start.alt;}}catch(e){console.warn('No se pudo muestrear la pista; se usa altura aproximada.',e);}})
  .catch(err=>{console.warn('Terreno 3D no disponible; se mantiene el globo base:',err);});
 viewer.scene.screenSpaceCameraController.maximumZoomDistance=25000000;
-const keys={};let throttle=0,pitch=0,roll=0,heading=0,speed=0,altitude=620,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,landed=true,last=performance.now(),aircraft,hitboxParts=[],hitboxVisible=false,groundHeight=618,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false,rho:1.225,gravity:9.80665,verticalSpeed:0},debrisPieces=[],smokePuffs=[],fireEntity=null,crashStarted=0;
+const keys={};let throttle=0,pitch=0,roll=0,heading=0,speed=0,altitude=620,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,landed=true,last=performance.now(),aircraft,hitboxParts=[],hitboxVisible=true,groundHeight=618,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false,rho:1.225,gravity:9.80665,verticalSpeed:0},debrisPieces=[],smokePuffs=[],fireEntity=null,crashStarted=0;
 const radians=Math.PI/180;
 const start={lat:13.6995,lon:-89.1198,alt:620};
 function setMessage(a,b,cls='good'){$('message').textContent=a;$('message').className=cls;$('detail').textContent=b}
@@ -80,7 +80,7 @@ async function enableSatellite(){
 }
 $('satellite').onclick=enableSatellite;
 $('daynight').onclick=()=>{viewer.clock.shouldAnimate=!viewer.clock.shouldAnimate;$('daynight').textContent=viewer.clock.shouldAnimate?'Pausar ciclo':'Reanudar ciclo';setMessage(viewer.clock.shouldAnimate?'Ciclo día/noche activo':'Ciclo día/noche pausado',viewer.clock.shouldAnimate?'La iluminación sigue la posición del Sol y cambia con la hora simulada.':'La hora y la iluminación se mantienen fijas hasta reanudar.');};
-$('hitbox').onclick=()=>{hitboxVisible=!hitboxVisible;for(const part of hitboxParts)part.entity.show=hitboxVisible;$('hitbox').textContent='Hitbox 3D: '+(hitboxVisible?'ON':'OFF');setMessage(hitboxVisible?'Colisión por silueta aproximada visible':'Colisión por silueta oculta',hitboxVisible?'Las formas cian aproximan fuselaje, alas y cola del modelo 3D. No es una colisión exacta con cada triángulo del GLB.':'Las formas de colisión siguen activas aunque estén ocultas.');};
+// La hitbox 3D permanece visible siempre; no existe control para desactivarla.
 function makePlane(){
  const position=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
  const orientation=Cesium.Transforms.headingPitchRollQuaternion(position,new Cesium.HeadingPitchRoll(heading,pitch,roll));
@@ -105,7 +105,7 @@ function makePlane(){
   const offset=Cesium.Matrix3.multiplyByVector(rot,shape.offset,new Cesium.Cartesian3());
   const partPos=Cesium.Cartesian3.add(position,offset,new Cesium.Cartesian3());
   const entity=viewer.entities.add({name:'Colisión '+shape.name,position:partPos,orientation,
-   show:hitboxVisible,ellipsoid:{radii:shape.radii,material:cyan,outline:true,outlineColor:Cesium.Color.CYAN}});
+   show:true,ellipsoid:{radii:shape.radii,material:cyan,outline:true,outlineColor:Cesium.Color.CYAN}});
   hitboxParts.push({entity,offset:shape.offset});
  }
 }
@@ -172,7 +172,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
 }
  if(physicsData.stall&&altitude>100){setMessage('AVISO: PÉRDIDA DE SUSTENTACIÓN','Reduce el ángulo de ataque y aumenta potencia para recuperar velocidad.','warn');}
  }
- if(aircraft){const p=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);const q=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading,pitch,roll));aircraft.position=p;aircraft.orientation=q;const rot=Cesium.Matrix3.fromQuaternion(q);for(const part of hitboxParts){const offset=Cesium.Matrix3.multiplyByVector(rot,part.offset,new Cesium.Cartesian3());part.entity.position=Cesium.Cartesian3.add(p,offset,new Cesium.Cartesian3());part.entity.orientation=q;part.entity.show=hitboxVisible;}}
+ if(aircraft){const p=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);const q=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading,pitch,roll));aircraft.position=p;aircraft.orientation=q;const rot=Cesium.Matrix3.fromQuaternion(q);for(const part of hitboxParts){const offset=Cesium.Matrix3.multiplyByVector(rot,part.offset,new Cesium.Cartesian3());part.entity.position=Cesium.Cartesian3.add(p,offset,new Cesium.Cartesian3());part.entity.orientation=q;part.entity.show=true;}}
  if(crashed&&debrisPieces.length)updateCrashEffects(dt,now);
  follow=true;
  const cameraTarget=crashed?localPosition(0,0,groundHeight+3):Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
