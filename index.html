@@ -183,6 +183,8 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  if(landed&&!crashed){
   if(keys.arrowup)throttle=Math.min(1,throttle+dt*.7);if(keys.arrowdown)throttle=Math.max(0,throttle-dt*.7);
   const groundSpeedMps=speed/3.6;const groundAcceleration=throttle*7.5-0.10*groundSpeedMps-0.25;speed=Math.max(0,Math.min(220,speed+(groundAcceleration-(keys[' ']?8:0))*dt));altitude=groundHeight+2;pitch=0;roll=0;flightPathAngle=0;
+  // Dirección en tierra: A gira a la izquierda y D a la derecha cuando el avión rueda.
+  if(speed>5){const steering=(keys.d?1:0)-(keys.a?1:0);heading=(heading+steering*0.55*dt+Math.PI*2)%(Math.PI*2);}
   lat+=Math.cos(heading)*(speed/3.6)*dt/111320;lon+=Math.sin(heading)*(speed/3.6)*dt/(111320*Math.max(.15,Math.cos(lat*radians)));
   if(speed>=110&&throttle>=.7){landed=false;pitch=0.22;pitchRate=0;flightPathAngle=0.02;setMessage('¡DESPEGANDO!','Rotación automática activada. Mantén potencia alta y usa W para subir.');}
  }
