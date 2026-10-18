@@ -34,15 +34,15 @@ window.AeroAudio = (() => {
   function setStatus(text){const el=$("audioStatus");if(el)el.textContent=text;}
   function setupUI(){
     if(uiReady||!$("radioStation"))return;uiReady=true;
-    radio=$("radioStream");radio.preload="none";radio.crossOrigin="anonymous";
+    radio=$("radioStream");radio.preload="none";
     for(const s of stations){const o=document.createElement("option");o.value=s.url;o.textContent=s.name;radio.appendChild(o);}
     radio.addEventListener("error",()=>setStatus("No se pudo reproducir esta señal. Prueba otra emisora o abre su web."));
     radio.addEventListener("playing",()=>setStatus("Reproduciendo radio por internet."));
     $("radioPlay").addEventListener("click",async()=>{
-      ensureAudio();const s=stations.find(x=>x.url===radio.value);
+      ensureAudio();const s=stations.find(x=>x.url===$("radioStation").value);
       if(s&&s.page){window.open(s.site,"_blank","noopener");setStatus("SUR FM se abre en su página oficial; pulsa play allí.");return;}
       if(!radio.paused){radio.pause();$("radioPlay").textContent="▶ Radio";return;}
-      radio.src=radio.value;radio.volume=Number($("radioVolume").value)/100;
+      $("mp3Player").pause();radio.src=$("radioStation").value;radio.volume=Number($("radioVolume").value)/100;
       try{await radio.play();$("radioPlay").textContent="Ⅱ Pausar radio";}catch(e){setStatus("El navegador o la emisora bloqueó la reproducción. Prueba otra emisora.");}
     });
     $("radioStation").addEventListener("change",()=>{radio.pause();radio.removeAttribute("src");radio.load();$("radioPlay").textContent="▶ Radio";setStatus("Emisora seleccionada. Pulsa Radio para escuchar.");});
