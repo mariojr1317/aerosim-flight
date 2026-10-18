@@ -39,7 +39,7 @@ viewer.scene.backgroundColor=Cesium.Color.fromCssColorString('#07111c');
 try{const terrain=await Cesium.CesiumTerrainProvider.fromUrl('https://assets.agi.com/stk-terrain/v1/tilesets/world/tiles');viewer.terrainProvider=terrain;setMessage('Mapa conectado','Cartografía mundial cargada. Comprobando elevación 3D…');}catch(err){console.warn('Proveedor de terreno no disponible:',err);setMessage('Mapa listo · terreno plano','El mapa funciona, pero la elevación real no respondió. El avión y el mapa siguen disponibles.','warn');}
 viewer.scene.screenSpaceCameraController.minimumZoomDistance=20;
 viewer.scene.screenSpaceCameraController.maximumZoomDistance=25000000;
-const keys={};let throttle=.55,pitch=.10,roll=0,heading=0,speed=115,altitude=900,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,last=performance.now(),aircraft,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false};
+const keys={};let throttle=.55,pitch=.08,roll=0,heading=0,speed=145,altitude=900,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,last=performance.now(),aircraft,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false};
 const radians=Math.PI/180;
 const start={lat:13.6995,lon:-89.1198,alt:900};
 function setMessage(a,b,cls='good'){$('message').textContent=a;$('message').className=cls;$('detail').textContent=b}
@@ -51,7 +51,7 @@ function makePlane(){
  label:{text:'AeroSim',font:'12px sans-serif',fillColor:Cesium.Color.WHITE,outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,verticalOrigin:Cesium.VerticalOrigin.BOTTOM,pixelOffset:new Cesium.Cartesian2(0,-22)},
  path:{resolution:1,material:Cesium.Color.CYAN.withAlpha(.7),width:2}});
 }
-function reset(){lat=start.lat;lon=start.lon;altitude=start.alt;speed=115;pitch=.10;roll=0;heading=0;throttle=.55;health=100;crashed=false;gear=true;flightPathAngle=0;pitchRate=0;rollRate=0;
+function reset(){lat=start.lat;lon=start.lon;altitude=start.alt;speed=145;pitch=.08;roll=0;heading=0;throttle=.55;health=100;crashed=false;gear=true;flightPathAngle=0;pitchRate=0;rollRate=0;
  if(aircraft)viewer.entities.remove(aircraft);makePlane();viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(lon,lat,altitude+1800),duration:1.5});
  setMessage('Listo para volar','Estás sobre Ilopango, El Salvador. Aumenta potencia para ganar velocidad.');}
 $('reset').onclick=reset;
