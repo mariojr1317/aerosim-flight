@@ -89,23 +89,31 @@ function makePlane(){
  point:{pixelSize:10,color:Cesium.Color.CYAN,outlineColor:Cesium.Color.WHITE,outlineWidth:2},
  label:{text:'AeroSim',font:'12px sans-serif',fillColor:Cesium.Color.WHITE,outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,verticalOrigin:Cesium.VerticalOrigin.BOTTOM,pixelOffset:new Cesium.Cartesian2(0,-22)},
  path:{resolution:1,material:Cesium.Color.CYAN.withAlpha(.7),width:2}});
- // Colisión compuesta para aproximar la silueta del modelo: fuselaje, alas y estabilizadores.
- // El GLB de Cesium no expone un collider físico, así que son volúmenes aproximados.
+ // Hitbox compuesta de perfil más cercano a un avión: fuselaje, secciones de ala y empenaje.
+ // Son volúmenes simplificados alineados con el modelo; no equivalen a la malla triangular del GLB.
  hitboxParts=[];
- const cyan=Cesium.Color.CYAN.withAlpha(.20);
+ const cyan=Cesium.Color.CYAN.withAlpha(.055);
+ const edge=Cesium.Color.CYAN.withAlpha(.95);
  const shapes=[
-  {name:'Fuselaje',offset:new Cesium.Cartesian3(0,0,0),radii:new Cesium.Cartesian3(6.5,1.05,1.05)},
-  {name:'Alas',offset:new Cesium.Cartesian3(0,0,0),radii:new Cesium.Cartesian3(2.5,5.5,.24)},
-  {name:'Estabilizador horizontal',offset:new Cesium.Cartesian3(-5.0,0,.12),radii:new Cesium.Cartesian3(1.5,2.15,.18)},
-  {name:'Cola vertical',offset:new Cesium.Cartesian3(-5.3,0,.65),radii:new Cesium.Cartesian3(1.0,.18,.9)},
-  {name:'Morro',offset:new Cesium.Cartesian3(5.2,0,-.05),radii:new Cesium.Cartesian3(1.4,.72,.72)}
+  {name:'Fuselaje',offset:new Cesium.Cartesian3(0,0,0),kind:'ellipsoid',radii:new Cesium.Cartesian3(5.8,.72,.78)},
+  {name:'Ala central',offset:new Cesium.Cartesian3(0,0,0),kind:'box',dimensions:new Cesium.Cartesian3(2.8,3.2,.18)},
+  {name:'Ala izquierda interior',offset:new Cesium.Cartesian3(0,2.95,0),kind:'box',dimensions:new Cesium.Cartesian3(2.25,3.0,.14)},
+  {name:'Ala derecha interior',offset:new Cesium.Cartesian3(0,-2.95,0),kind:'box',dimensions:new Cesium.Cartesian3(2.25,3.0,.14)},
+  {name:'Punta ala izquierda',offset:new Cesium.Cartesian3(.08,5.15,0),kind:'box',dimensions:new Cesium.Cartesian3(1.65,1.45,.11)},
+  {name:'Punta ala derecha',offset:new Cesium.Cartesian3(.08,-5.15,0),kind:'box',dimensions:new Cesium.Cartesian3(1.65,1.45,.11)},
+  {name:'Estabilizador izquierdo',offset:new Cesium.Cartesian3(-5.0,1.15,.10),kind:'box',dimensions:new Cesium.Cartesian3(1.35,1.9,.12)},
+  {name:'Estabilizador derecho',offset:new Cesium.Cartesian3(-5.0,-1.15,.10),kind:'box',dimensions:new Cesium.Cartesian3(1.35,1.9,.12)},
+  {name:'Cola vertical',offset:new Cesium.Cartesian3(-5.05,0,.62),kind:'box',dimensions:new Cesium.Cartesian3(1.25,.16,1.2)},
+  {name:'Morro',offset:new Cesium.Cartesian3(5.05,0,-.02),kind:'ellipsoid',radii:new Cesium.Cartesian3(1.05,.52,.52)}
  ];
  const rot=Cesium.Matrix3.fromQuaternion(orientation);
  for(const shape of shapes){
   const offset=Cesium.Matrix3.multiplyByVector(rot,shape.offset,new Cesium.Cartesian3());
   const partPos=Cesium.Cartesian3.add(position,offset,new Cesium.Cartesian3());
-  const entity=viewer.entities.add({name:'Colisión '+shape.name,position:partPos,orientation,
-   show:true,ellipsoid:{radii:shape.radii,material:cyan,outline:true,outlineColor:Cesium.Color.CYAN}});
+  const geometry=shape.kind==='box'
+   ? {box:{dimensions:shape.dimensions,material:cyan,outline:true,outlineColor:edge}}
+   : {ellipsoid:{radii:shape.radii,material:cyan,outline:true,outlineColor:edge}};
+  const entity=viewer.entities.add({name:'Hitbox 3D · '+shape.name,position:partPos,orientation,show:true,...geometry});
   hitboxParts.push({entity,offset:shape.offset});
  }
 }
