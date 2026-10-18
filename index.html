@@ -39,7 +39,7 @@ viewer.scene.backgroundColor=Cesium.Color.fromCssColorString('#07111c');
 try{const terrain=await Cesium.CesiumTerrainProvider.fromUrl('https://assets.agi.com/stk-terrain/v1/tilesets/world/tiles');viewer.terrainProvider=terrain;setMessage('Mapa conectado','Cartografía mundial cargada. Comprobando elevación 3D…');}catch(err){console.warn('Proveedor de terreno no disponible:',err);setMessage('Mapa listo · terreno plano','El mapa funciona, pero la elevación real no respondió. El avión y el mapa siguen disponibles.','warn');}
 viewer.scene.screenSpaceCameraController.minimumZoomDistance=20;
 viewer.scene.screenSpaceCameraController.maximumZoomDistance=25000000;
-const keys={};let throttle=.55,pitch=0,roll=0,heading=0,speed=115,altitude=900,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,last=performance.now(),aircraft,flightPathAngle=0,physicsData={stall:false};
+const keys={};let throttle=.55,pitch=.10,roll=0,heading=0,speed=115,altitude=900,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,last=performance.now(),aircraft,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false};
 const radians=Math.PI/180;
 const start={lat:13.6995,lon:-89.1198,alt:900};
 function setMessage(a,b,cls='good'){$('message').textContent=a;$('message').className=cls;$('detail').textContent=b}
@@ -51,7 +51,7 @@ function makePlane(){
  label:{text:'AeroSim',font:'12px sans-serif',fillColor:Cesium.Color.WHITE,outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,verticalOrigin:Cesium.VerticalOrigin.BOTTOM,pixelOffset:new Cesium.Cartesian2(0,-22)},
  path:{resolution:1,material:Cesium.Color.CYAN.withAlpha(.7),width:2}});
 }
-function reset(){lat=start.lat;lon=start.lon;altitude=start.alt;speed=115;pitch=0;roll=0;heading=0;throttle=.55;health=100;crashed=false;gear=true;flightPathAngle=0;
+function reset(){lat=start.lat;lon=start.lon;altitude=start.alt;speed=115;pitch=.10;roll=0;heading=0;throttle=.55;health=100;crashed=false;gear=true;flightPathAngle=0;pitchRate=0;rollRate=0;
  if(aircraft)viewer.entities.remove(aircraft);makePlane();viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(lon,lat,altitude+1800),duration:1.5});
  setMessage('Listo para volar','Estás sobre Ilopango, El Salvador. Aumenta potencia para ganar velocidad.');}
 $('reset').onclick=reset;
@@ -63,18 +63,17 @@ viewer.camera.moveEnd.addEventListener(()=>{});
 function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000,.05);last=now;
  if(!crashed){
  if(keys.arrowup)throttle=Math.min(1,throttle+dt*.25);if(keys.arrowdown)throttle=Math.max(0,throttle-dt*.25);
- const control=Math.max(.25,Math.min(1.15,speed/150));
- if(keys.w)pitch=Math.min(.42,pitch+dt*.32*control);if(keys.s)pitch=Math.max(-.35,pitch-dt*.32*control);
- if(keys.a)roll=Math.min(.9,roll+dt*.55);if(keys.d)roll=Math.max(-.9,roll-dt*.55);
- if(!keys.a&&!keys.d)roll*=Math.pow(.992,dt*60);
- const state={speed,altitude,pitch,roll,heading,flightPathAngle};
- physicsData=AeroPhysics.step(state,throttle,dt);
+ const pitchInput=(keys.w?1:0)-(keys.s?1:0);
+ const rollInput=(keys.a?1:0)-(keys.d?1:0);
+ const state={speed,altitude,pitch,roll,heading,flightPathAngle,pitchRate,rollRate};
+ physicsData=AeroPhysics.step(state,{throttle,pitch:pitchInput,roll:rollInput},dt);
  speed=state.speed;altitude=state.altitude;heading=state.heading;flightPathAngle=state.flightPathAngle;
+ pitch=state.pitch;roll=state.roll;pitchRate=state.pitchRate;rollRate=state.rollRate;
  const groundSpeed=speed/3.6;
  lat+=Math.cos(heading)*groundSpeed*dt/111320;
  lon+=Math.sin(heading)*groundSpeed*dt/(111320*Math.max(.15,Math.cos(lat*radians)));
  if(lon>180)lon-=360;if(lon< -180)lon+=360;lat=Math.max(-85,Math.min(85,lat));
- if(altitude<20){altitude=20;flightPathAngle=0;if(speed>150||!gear){health=Math.max(0,health-15);crashed=true;setMessage('¡Impacto!','Contacto con el suelo. Integridad reducida; pulsa R para reiniciar.','warn');}else{speed=Math.max(0,speed-45*dt);setMessage('En tierra','Aumenta potencia para despegar.');}}
+ if(altitude<20){altitude=20;flightPathAngle=0;pitchRate=0;if(speed>150||!gear){health=Math.max(0,health-15);crashed=true;setMessage('¡Impacto!','Contacto con el nivel del mar. Pulsa R para reiniciar.','warn');}else{speed=Math.max(0,speed-45*dt);setMessage('En tierra','Aumenta potencia para despegar.');}}
  if(physicsData.stall&&altitude>100){setMessage('AVISO: PÉRDIDA DE SUSTENTACIÓN','Reduce el ángulo de ataque y aumenta potencia para recuperar velocidad.','warn');}
  }
  if(aircraft){const p=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);aircraft.position=p;aircraft.orientation=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading,pitch,roll));}
