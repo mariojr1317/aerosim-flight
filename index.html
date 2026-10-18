@@ -31,7 +31,7 @@ const viewer=new Cesium.Viewer('cesiumContainer',{
  navigationHelpButton:false,baseLayerPicker:false,fullscreenButton:true,infoBox:false,
  selectionIndicator:false,baseLayer:false,terrainProvider:new Cesium.EllipsoidTerrainProvider(),
 });
-viewer.imageryLayers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({url:'https://tile.openstreetmap.org/',maximumLevel:19,credit:'© OpenStreetMap contributors'}));
+const osmLayer=viewer.imageryLayers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({url:'https://tile.openstreetmap.org/',maximumLevel:19,credit:'© OpenStreetMap contributors'}));
 viewer.scene.globe.enableLighting=true;
 viewer.scene.globe.depthTestAgainstTerrain=true;
 viewer.scene.backgroundColor=Cesium.Color.fromCssColorString('#07111c');
@@ -43,6 +43,31 @@ const keys={};let throttle=.55,pitch=.08,roll=0,heading=0,speed=145,altitude=900
 const radians=Math.PI/180;
 const start={lat:13.6995,lon:-89.1198,alt:900};
 function setMessage(a,b,cls='good'){$('message').textContent=a;$('message').className=cls;$('detail').textContent=b}
+let googleTileset=null;
+async function enableGoogle3D(apiKey, saveKey=false){
+ if(!apiKey || !apiKey.trim()){setMessage('Falta la API key','Crea una clave de Google Maps Platform y pulsa Google 3D para introducirla.','warn');return;}
+ if(googleTileset){setMessage('Google 3D ya está activo','Las imágenes fotorealistas están cargadas.');return;}
+ setMessage('Cargando Google 3D…','Conectando con Google Photorealistic 3D Tiles. Esto requiere internet.');
+ try{
+  const url='https://tile.googleapis.com/v1/3dtiles/root.json?key='+encodeURIComponent(apiKey.trim());
+  const tileset=await Cesium.Cesium3DTileset.fromUrl(url,{showCreditsOnScreen:true});
+  viewer.scene.primitives.add(tileset);
+  googleTileset=tileset;
+  osmLayer.show=false;
+  viewer.scene.globe.show=false;
+  if(saveKey){try{localStorage.setItem('aerosim_google_maps_key',apiKey.trim());}catch(e){console.warn('No se pudo guardar la clave localmente',e);}}
+  setMessage('Google 3D activo','Fotorealismo de Google cargado. Se muestran los créditos del proveedor.');
+ }catch(err){
+  console.error('No se pudo cargar Google 3D:',err);
+  osmLayer.show=true;viewer.scene.globe.show=true;
+  setMessage('No se pudo cargar Google 3D','Comprueba la API key, la facturación, Map Tiles API y las restricciones de la clave. El mapa de respaldo sigue activo.','warn');
+ }
+}
+$('google3d').onclick=()=>{
+ let saved='';try{saved=localStorage.getItem('aerosim_google_maps_key')||'';}catch(e){}
+ const key=prompt('Pega tu Google Maps Platform API key. Se guardará solo en este navegador, no en el código de GitHub:',saved);
+ if(key!==null)enableGoogle3D(key,true);
+};
 function makePlane(){
  const position=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
  aircraft=viewer.entities.add({name:'AeroSim aircraft',position,orientation:Cesium.Transforms.headingPitchRollQuaternion(position,new Cesium.HeadingPitchRoll(heading,pitch,roll)),
@@ -81,7 +106,8 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  $('speed').textContent=Math.round(speed);$('alt').textContent=Math.round(altitude);$('power').textContent=Math.round(throttle*100);$('bank').textContent=Math.round(roll*57.3);$('health').textContent=health;$('coords').textContent=lat.toFixed(3)+', '+lon.toFixed(3);
 }
 reset();requestAnimationFrame(tick);
-setMessage('Mundo 3D cargado','Globo mundial y mapa de OpenStreetMap listos. El terreno de esta versión es el elipsoide base; se puede conectar un proveedor de elevación compatible.');
+setMessage('Mundo 3D cargado','Globo mundial listo. Pulsa «Google 3D» para activar las ciudades fotorealistas. La clave se guarda solo en este navegador.');
+try{const savedKey=localStorage.getItem('aerosim_google_maps_key');if(savedKey)enableGoogle3D(savedKey,false);}catch(e){}
 })();
 </script>
 </body></html>
