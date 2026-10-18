@@ -72,8 +72,28 @@ window.AeroAudio = (() => {
     $("radioStation").addEventListener("change",()=>{radio.pause();radio.removeAttribute("src");radio.load();$("radioPlay").textContent="▶ Radio";setStatus("Emisora seleccionada. Pulsa Radio para escuchar.");});
     $("radioVolume").addEventListener("input",()=>{if(radio)radio.volume=Number($("radioVolume").value)/100;$("radioVolLabel").textContent=$("radioVolume").value+"%";});
     $("engineVolume").addEventListener("input",()=>{$("engineVolLabel").textContent=$("engineVolume").value+"%";if(engineGain&&ctx)engineGain.gain.setTargetAtTime(Number($("engineVolume").value)/100*.16,ctx.currentTime,.08);if(windGain&&ctx)windGain.gain.setTargetAtTime(Number($("engineVolume").value)/100*.25,ctx.currentTime,.08);if(realEngine)realEngine.volume=Number($("engineVolume").value)/100*.62;});
+    $("playlistJson")?.addEventListener("change",async e=>{
+      const file=e.target.files&&e.target.files[0];if(!file)return;
+      try{
+        const data=JSON.parse(await file.text());
+        const source=Array.isArray(data)?data:data.tracks;
+        if(!Array.isArray(source)||!source.length)throw new Error('El JSON debe incluir una lista no vacía en "tracks".');
+        const parsed=source.map((item,index)=>{
+          const url=typeof item==="string"?item:item&&item.url;
+          const name=typeof item==="object"&&item?(item.title||item.name||("Canción "+(index+1))):("Canción "+(index+1));
+          if(typeof url!=="string"||!url.trim())throw new Error("Falta la URL de la canción "+(index+1)+".");
+          const resolved=new URL(url,window.location.href);
+          if(!["http:","https:"].includes(resolved.protocol))throw new Error("Solo se admiten enlaces HTTP/HTTPS en playlists JSON.");
+          return {name:String(name).slice(0,160),url:resolved.href,remote:true};
+        });
+        for(const t of tracks)if(t.objectUrl)URL.revokeObjectURL(t.url);
+        tracks=parsed;trackIndex=0;renderTracks();await playTrack(0);
+        setStatus("Playlist JSON cargada: "+(data.name||file.name)+" · "+tracks.length+" canciones.");
+      }catch(err){console.warn("Playlist JSON inválida:",err);setStatus("No se pudo cargar la playlist: "+err.message);}
+      e.target.value="";
+    });
     $("mp3Files").addEventListener("change",e=>{
-      for(const f of Array.from(e.target.files||[])){if(!f.type.startsWith("audio/")&&!/\.mp3$/i.test(f.name))continue;tracks.push({name:f.name,url:URL.createObjectURL(f)});}
+      for(const f of Array.from(e.target.files||[])){if(!f.type.startsWith("audio/")&&!/\.mp3$/i.test(f.name))continue;tracks.push({name:f.name,url:URL.createObjectURL(f),objectUrl:true});}
       renderTracks();if(tracks.length){trackIndex=tracks.length-(e.target.files?.length||1);playTrack(trackIndex);}
       e.target.value="";
     });
