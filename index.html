@@ -333,7 +333,8 @@ $('home').onclick=()=>{start.lat=13.6995;start.lon=-89.1198;start.alt=620;ground
 $('chooseTakeoff').onclick=()=>{
  choosingTakeoff=!choosingTakeoff;
  $('chooseTakeoff').textContent=choosingTakeoff?'✖ Cancelar selección':'📍 Elegir despegue en el mapa';
- setMessage(choosingTakeoff?'Selecciona el punto de despegue':'Selección cancelada',choosingTakeoff?'Haz clic en cualquier lugar del globo donde quieras iniciar. Se intentará usar la elevación del terreno.':'El punto de salida actual no ha cambiado.',choosingTakeoff?'warn':'good');
+ if(choosingTakeoff)viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(lon,lat,2500000),duration:1.2});
+ setMessage(choosingTakeoff?'Selecciona el punto de despegue':'Selección cancelada',choosingTakeoff?'Haz clic en el mapa; puedes moverlo y usar la rueda para acercar o alejar.':'El punto de salida actual no ha cambiado.',choosingTakeoff?'warn':'good');
 };
 viewer.screenSpaceEventHandler.setInputAction(async click=>{
  if(!choosingTakeoff)return;
@@ -400,9 +401,11 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  if(aircraft){const p=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);const q=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading - Cesium.Math.PI_OVER_TWO,pitch,roll));aircraft.position=p;aircraft.orientation=q;const rot=Cesium.Matrix3.fromQuaternion(q);for(const part of hitboxParts){const offset=Cesium.Matrix3.multiplyByVector(rot,part.offset,new Cesium.Cartesian3());part.entity.position=Cesium.Cartesian3.add(p,offset,new Cesium.Cartesian3());part.entity.orientation=q;part.entity.show=false;}}
  if(crashed&&debrisPieces.length)updateCrashEffects(dt,now);
  if(window.AeroAudio)AeroAudio.update({throttle,speed,altitude,lat,lon,crashed,landed});
- follow=true;
- const cameraTarget=crashed?localPosition(0,0,groundHeight+4):Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
- viewer.camera.lookAt(cameraTarget,new Cesium.HeadingPitchRange(heading,crashed?-0.45:-0.16,crashed?75:65));
+ if(!choosingTakeoff){
+  follow=true;
+  const cameraTarget=crashed?localPosition(0,0,groundHeight+4):Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
+  viewer.camera.lookAt(cameraTarget,new Cesium.HeadingPitchRange(heading,crashed?-0.45:-0.16,crashed?75:65));
+ }
  const simDate=Cesium.JulianDate.toDate(viewer.clock.currentTime);const simHour=simDate.getUTCHours();$('clock').textContent=simDate.toISOString().slice(11,19)+' UTC';$('phase').textContent=simHour>=6&&simHour<18?'Día':'Noche';$('speed').textContent=Math.round(speed);$('vspeed').textContent=(physicsData.verticalSpeed||0).toFixed(1);$('alt').textContent=Math.round(altitude);$('ground').textContent=Math.round(groundHeight);$('power').textContent=Math.round(throttle*100);$('bank').textContent=Math.round(roll*57.3);$('air').textContent=(physicsData.rho||1.225).toFixed(3);$('gravity').textContent=(physicsData.gravity||9.80665).toFixed(3);$('health').textContent=health;$('coords').textContent=lat.toFixed(3)+', '+lon.toFixed(3);
  if(debugMode){
   const fmt=(v,d=1)=>Number.isFinite(v)?v.toFixed(d):'—';
