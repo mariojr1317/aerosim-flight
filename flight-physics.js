@@ -90,7 +90,7 @@ window.AeroPhysics = (() => {
       cl = Math.sign(alpha) * clAtStall * postStall;
     }
     cl = clamp(cl, -1.0, AIRCRAFT.clMax);
-    const stall = v < 1.3 * Math.sqrt((2 * AIRCRAFT.mass * g) / (Math.max(rho, 0.1) * AIRCRAFT.wingArea * AIRCRAFT.clMax))
+    const stall = v < 1.05 * Math.sqrt((2 * AIRCRAFT.mass * g) / (Math.max(rho, 0.1) * AIRCRAFT.wingArea * AIRCRAFT.clMax))
       || Math.abs(alpha) > alphaStall;
 
     const heightAboveGround = Math.max(0, finite(s.altitude) - finite(s.groundHeight));
