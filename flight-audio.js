@@ -39,8 +39,8 @@ window.AeroAudio = (() => {
   function setupUI(){
     if(uiReady||!$("radioStation"))return;uiReady=true;
     radio=$("radioStream");radio.preload="none";
-    for(const s of stations){const o=document.createElement("option");o.value=s.url;o.textContent=s.name; $("radioStation").appendChild(o);}
-    radio.addEventListener("error",()=>setStatus("No se pudo reproducir esta señal. Prueba otra emisora o abre su web."));
+    if($("radioStation").options.length===0){for(const s of stations){const o=document.createElement("option");o.value=s.url;o.textContent=s.name;$("radioStation").appendChild(o);}}
+    radio.addEventListener("error",()=>{setStatus("La emisora seleccionada no respondió. Elige otra y pulsa Radio.");$("radioPlay").textContent="▶ Radio";});
     radio.addEventListener("playing",()=>setStatus("Reproduciendo radio por internet."));
     $("soundEnable").addEventListener("click",()=>{ensureAudio();if(ctx&&ctx.state==="suspended")ctx.resume();setStatus("Sonido de motor y viento activado.");});
     $("radioPlay").addEventListener("click",async()=>{
@@ -66,7 +66,7 @@ window.AeroAudio = (() => {
     $("mp3Player").addEventListener("pause",()=>{$("mp3Play").textContent="▶ Reproducir MP3";});
     $("mp3Volume").addEventListener("input",()=>{$("mp3Player").volume=Number($("mp3Volume").value)/100;$("mp3VolLabel").textContent=$("mp3Volume").value+"%";});
     $("radioVolume").dispatchEvent(new Event("input"));$("mp3Volume").dispatchEvent(new Event("input"));$("engineVolume").dispatchEvent(new Event("input"));
-    setStatus("El audio empieza cuando pulses un botón; no requiere instalar nada.");
+    setStatus("13 emisoras cargadas. Selecciona una y pulsa Radio; si una señal falla, prueba otra.");
   }
   function renderTracks(){const list=$("mp3List");if(!list)return;list.textContent=tracks.length?tracks.map((t,i)=>(i+1)+". "+t.name).join(" · "):"Ningún archivo seleccionado.";}
   async function playTrack(i){if(!tracks.length)return;ensureAudio();trackIndex=(i+tracks.length)%tracks.length;const a=$("mp3Player");a.src=tracks[trackIndex].url;a.volume=Number($("mp3Volume").value)/100;try{await a.play();setStatus("MP3 local: "+tracks[trackIndex].name);}catch(e){setStatus("No se pudo reproducir el archivo seleccionado.");}}
