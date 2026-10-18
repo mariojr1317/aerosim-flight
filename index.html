@@ -26,17 +26,22 @@ Integridad: <span id="health">100</span>%<br>Posición: <span id="coords">13.7, 
 <script>
 (async()=>{
 const $=id=>document.getElementById(id);
+const osmProvider=new Cesium.OpenStreetMapImageryProvider({url:'https://tile.openstreetmap.org/',maximumLevel:19,credit:'© OpenStreetMap contributors'});
 const viewer=new Cesium.Viewer('cesiumContainer',{
  animation:false,timeline:false,geocoder:false,homeButton:false,sceneModePicker:false,
  navigationHelpButton:false,baseLayerPicker:false,fullscreenButton:true,infoBox:false,
- selectionIndicator:false,baseLayer:false,terrainProvider:new Cesium.EllipsoidTerrainProvider(),
+ selectionIndicator:false,baseLayer:new Cesium.ImageryLayer(osmProvider),
+ terrainProvider:new Cesium.EllipsoidTerrainProvider(),scene3DOnly:true,
 });
-const osmLayer=viewer.imageryLayers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({url:'https://tile.openstreetmap.org/',maximumLevel:19,credit:'© OpenStreetMap contributors'}));
+const osmLayer=viewer.imageryLayers.get(0);
+viewer.scene.globe.show=true;
 viewer.scene.globe.enableLighting=true;
-viewer.scene.globe.depthTestAgainstTerrain=true;
+viewer.scene.globe.depthTestAgainstTerrain=false;
+viewer.scene.globe.baseColor=Cesium.Color.fromCssColorString('#17334b');
+viewer.scene.renderError.addEventListener((scene,error)=>{console.error('Cesium render error:',error);setMessage('Error al dibujar el globo','El navegador informó un error de renderizado. Prueba recargar la página y comprueba que WebGL esté habilitado.','warn');});
 viewer.scene.backgroundColor=Cesium.Color.fromCssColorString('#07111c');
 // Posiciona la cámara inmediatamente; no esperes a que cargue el terreno.
-viewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(-89.1198,13.6995,1800000)});
+viewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(-89.1198,13.6995,1800000),orientation:{heading:0,pitch:-Cesium.Math.PI_OVER_TWO,roll:0}});
 viewer.scene.screenSpaceCameraController.minimumZoomDistance=20;
 // El terreno se carga en segundo plano para que un servidor lento no congele la inicialización.
 Cesium.CesiumTerrainProvider.fromUrl('https://terrain.reearth.land/cesium-mesh/ellipsoid',{requestVertexNormals:true,requestWaterMask:true})
@@ -80,7 +85,7 @@ $('map').onclick=()=>{follow=false;viewer.camera.flyTo({destination:Cesium.Carte
 addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(['ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault();if(e.key.toLowerCase()==='g')gear=!gear;if(e.key.toLowerCase()==='r')reset();if(e.key.toLowerCase()==='c')follow=!follow;});
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 viewer.camera.moveEnd.addEventListener(()=>{});
-function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000,.05);last=now;
+function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000,.05);last=now; if(!viewer.isDestroyed())viewer.scene.requestRender();
  if(!crashed){
  if(keys.arrowup)throttle=Math.min(1,throttle+dt*.25);if(keys.arrowdown)throttle=Math.max(0,throttle-dt*.25);
  const pitchInput=(keys.w?1:0)-(keys.s?1:0);
