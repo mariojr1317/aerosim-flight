@@ -244,14 +244,15 @@ function destroyAircraft(){
   {x:3,y:-6,z:ground+.6,s:[1.2,.6,.16],color:'#555b60'}
  ];
  for(const p of parts){const z=p.z+3,pos=localPosition(p.x,p.y,z);const entity=viewer.entities.add({name:'Restos del avión',position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(heading+Math.random()*.8,Math.random()*.5,Math.random()*.8)),box:{dimensions:new Cesium.Cartesian3(...p.s),material:Cesium.Color.fromCssColorString(p.color),outline:true,outlineColor:Cesium.Color.BLACK}});debrisPieces.push({entity,x:p.x,y:p.y,z,vx:(Math.random()-.5)*18,vy:(Math.random()-.5)*18,vz:8+Math.random()*12,spin:(Math.random()-.5)*3,angle:0});}
- for(let i=0;i<7;i++){const pos=localPosition((Math.random()-.5)*3,(Math.random()-.5)*3,ground+2+i*.5);const entity=viewer.entities.add({name:'Humo del impacto',position:pos,ellipsoid:{radii:new Cesium.Cartesian3(1.4+i*.35,1.4+i*.35,1.7+i*.5),material:Cesium.Color.fromCssColorString('#292d31').withAlpha(.62-i*.055),outline:false}});smokePuffs.push({entity,age:0,offset:i*.18});}
- fireEntity=viewer.entities.add({name:'Fuego del impacto',position:localPosition(0,0,ground+1.5),ellipsoid:{radii:new Cesium.Cartesian3(2.1,2.1,1.8),material:Cesium.Color.ORANGE.withAlpha(.8),outline:false}});
+ for(let i=0;i<12;i++){const pos=localPosition((Math.random()-.5)*4,(Math.random()-.5)*4,ground+2+i*.35);const radius=2.2+i*.22;const entity=viewer.entities.add({name:'Humo negro del impacto',position:pos,ellipsoid:{radii:new Cesium.Cartesian3(radius,radius,radius*1.25),material:Cesium.Color.fromCssColorString('#25282b').withAlpha(.78-i*.035),outline:false}});smokePuffs.push({entity,age:0,offset:i*.18});}
+ fireEntity=viewer.entities.add({name:'Llamas visibles del impacto',position:localPosition(0,0,ground+2),ellipsoid:{radii:new Cesium.Cartesian3(3.4,3.4,3.8),material:Cesium.Color.fromCssColorString('#ff4b00').withAlpha(.95),outline:false}});
+ viewer.entities.add({name:'Núcleo amarillo de las llamas',position:localPosition(.2,0,ground+1.4),ellipsoid:{radii:new Cesium.Cartesian3(1.8,1.8,2.3),material:Cesium.Color.fromCssColorString('#ffd23f').withAlpha(.96),outline:false}});
  crashStarted=performance.now();
 }
 function updateCrashEffects(dt,now){
  const elapsed=(now-crashStarted)/1000;
  for(const d of debrisPieces){d.vz-=9.81*dt;d.x+=d.vx*dt;d.y+=d.vy*dt;d.z+=d.vz*dt;if(d.z<groundHeight+.3){d.z=groundHeight+.3;d.vz=0;d.vx*=.82;d.vy*=.82;}d.angle+=d.spin*dt;const p=localPosition(d.x,d.y,d.z);d.entity.position=p;d.entity.orientation=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading+d.angle,d.angle*.5,d.angle*.3));}
- for(const s of smokePuffs){s.age+=dt;const scale=1+s.age*.65;const p=localPosition(Math.sin(s.age+s.offset)*.6,Math.cos(s.age+s.offset)*.6,groundHeight+2+s.age*2);s.entity.position=p;s.entity.ellipsoid.radii=new Cesium.Cartesian3(1.4*scale,1.4*scale,1.7*scale);s.entity.ellipsoid.material=Cesium.Color.fromCssColorString('#292d31').withAlpha(Math.max(0,.62-s.age*.075));}
+ for(const s of smokePuffs){s.age+=dt;const scale=1+s.age*.65;const p=localPosition(Math.sin(s.age+s.offset)*.9,Math.cos(s.age+s.offset)*.9,groundHeight+2+s.age*2.4);s.entity.position=p;s.entity.ellipsoid.radii=new Cesium.Cartesian3(2.2*scale,2.2*scale,2.8*scale);s.entity.ellipsoid.material=Cesium.Color.fromCssColorString('#25282b').withAlpha(Math.max(0,.78-s.age*.065));}
  if(fireEntity){fireEntity.position=localPosition(0,0,groundHeight+1.5);fireEntity.ellipsoid.material=Cesium.Color.fromCssColorString(elapsed<2?'#ff6a00':'#a83216').withAlpha(Math.max(0,.8-elapsed*.09));fireEntity.ellipsoid.radii=new Cesium.Cartesian3(2.1+Math.min(2,elapsed),2.1+Math.min(2,elapsed),1.8+Math.min(2,elapsed));if(elapsed>10){viewer.entities.remove(fireEntity);fireEntity=null;}}
 }
 function reset(){if(window.AeroAudio)AeroAudio.reset();clearCrashEffects();collisionLocked=false;lat=start.lat;lon=start.lon;altitude=start.alt;speed=0;pitch=0;roll=0;heading=0;throttle=0;health=100;crashed=false;landed=true;gear=true;flightPathAngle=0;pitchRate=0;rollRate=0;
@@ -304,7 +305,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  if(window.AeroAudio)AeroAudio.update({throttle,speed,altitude,crashed,landed});
  follow=true;
  const cameraTarget=crashed?localPosition(0,0,groundHeight+3):Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
- viewer.camera.lookAt(cameraTarget,new Cesium.HeadingPitchRange(heading,crashed?-0.35:-0.16,crashed?100:65));
+ viewer.camera.lookAt(cameraTarget,new Cesium.HeadingPitchRange(heading,crashed?-0.45:-0.16,crashed?42:65));
  const simDate=Cesium.JulianDate.toDate(viewer.clock.currentTime);const simHour=simDate.getUTCHours();$('clock').textContent=simDate.toISOString().slice(11,19)+' UTC';$('phase').textContent=simHour>=6&&simHour<18?'Día':'Noche';$('speed').textContent=Math.round(speed);$('vspeed').textContent=(physicsData.verticalSpeed||0).toFixed(1);$('alt').textContent=Math.round(altitude);$('ground').textContent=Math.round(groundHeight);$('power').textContent=Math.round(throttle*100);$('bank').textContent=Math.round(roll*57.3);$('air').textContent=(physicsData.rho||1.225).toFixed(3);$('gravity').textContent=(physicsData.gravity||9.80665).toFixed(3);$('health').textContent=health;$('coords').textContent=lat.toFixed(3)+', '+lon.toFixed(3);
  if(debugMode){
   const fmt=(v,d=1)=>Number.isFinite(v)?v.toFixed(d):'—';
