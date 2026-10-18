@@ -233,8 +233,10 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  if(!crashed&&!landed){
  if(keys.arrowup)throttle=Math.min(1,throttle+dt*.25);if(keys.arrowdown)throttle=Math.max(0,throttle-dt*.25);
  const manualPitchInput=(keys.w?1:0)-(keys.s?1:0);
- const takeoffAssist=altitude<groundHeight+35&&speed>90&&throttle>.65?0.72:0;
- const pitchInput=Math.max(manualPitchInput,takeoffAssist);
+ // Mantiene una actitud moderada de despegue; no fuerza el elevador hacia arriba continuamente.
+ const takeoffAssist=altitude<groundHeight+45&&speed>105&&throttle>.65
+   ?Math.max(-0.45,Math.min(0.45,(0.16-pitch)*3.0-pitchRate*1.1)):0;
+ const pitchInput=manualPitchInput!==0?manualPitchInput:takeoffAssist;
  const rollInput=(keys.a?1:0)-(keys.d?1:0);
  const state={speed,altitude,groundHeight,pitch,roll,heading,flightPathAngle,pitchRate,rollRate};
  physicsData=AeroPhysics.step(state,{throttle,pitch:pitchInput,roll:rollInput},dt);
