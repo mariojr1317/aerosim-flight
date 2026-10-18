@@ -134,7 +134,7 @@ window.AeroPhysics = (() => {
     const nextBank = clamp(bank + nextRollRate * dt, -1.30, 1.30);
 
     // Coordinación de giro con alabeo; rumbo no cambia de forma instantánea.
-    const turnRate = g * Math.tan(nextBank) / vSafe;
+    const turnRate = 1.45 * g * Math.tan(nextBank) / vSafe;
     const nextHeading = ((finite(s.heading) + turnRate * dt) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
 
     if (dt > 0) {
