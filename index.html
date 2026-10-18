@@ -20,7 +20,7 @@ Velocidad: <span id="speed">0</span> km/h<br>Altitud: <span id="alt">0</span> m<
 Potencia: <span id="power">55</span>%<br>Inclinación: <span id="bank">0</span>°<br>
 Integridad: <span id="health">100</span>%<br>Posición: <span id="coords">13.7, -89.1</span></div>
 <div class="panel" id="help"><b>CONTROLES</b><br><span class="muted">W / S</span> Cabeceo<br><span class="muted">A / D</span> Alabeo<br><span class="muted">↑ / ↓</span> Potencia<br><span class="muted">G</span> Tren<br><span class="muted">C</span> Seguir / mapa<br><span class="muted">R</span> Reiniciar</div>
-<div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="home">Ir a Ilopango</button><button id="map">Vista global</button><button id="google3d">Google 3D</button></div>
+<div class="panel" id="bottom"><div id="message" class="good">Preparando el mundo…</div><div id="detail" class="muted">Mapa global con cartografía abierta. El terreno elevado depende del servicio externo.</div><button id="reset">Reiniciar vuelo</button><button id="home">Ir a Ilopango</button><button id="map">Vista global</button><button id="satellite">Satélite</button></div>
 <script src="https://cesium.com/downloads/cesiumjs/releases/1.127/Build/Cesium/Cesium.js"></script>
 <script src="./flight-physics.js"></script>
 <script>
@@ -36,38 +36,29 @@ viewer.scene.globe.enableLighting=true;
 viewer.scene.globe.depthTestAgainstTerrain=true;
 viewer.scene.backgroundColor=Cesium.Color.fromCssColorString('#07111c');
 // El mapa base se carga independientemente del proveedor de elevación.
-try{const terrain=await Cesium.CesiumTerrainProvider.fromUrl('https://assets.agi.com/stk-terrain/v1/tilesets/world/tiles');viewer.terrainProvider=terrain;setMessage('Mapa conectado','Cartografía mundial cargada. Comprobando elevación 3D…');}catch(err){console.warn('Proveedor de terreno no disponible:',err);setMessage('Mapa listo · terreno plano','El mapa funciona, pero la elevación real no respondió. El avión y el mapa siguen disponibles.','warn');}
+try{const terrain=await Cesium.CesiumTerrainProvider.fromUrl('https://terrain.reearth.land/cesium-mesh/ellipsoid',{requestVertexNormals:true,requestWaterMask:true});viewer.terrainProvider=terrain;setMessage('Terreno 3D conectado','Relieve mundial cargado. Preparando las imágenes del mapa…');}catch(err){console.warn('Proveedor de terreno no disponible:',err);setMessage('Terreno 3D no disponible','El mapa sigue funcionando con relieve plano. Las imágenes satelitales pueden seguir cargándose.','warn');}
 viewer.scene.screenSpaceCameraController.minimumZoomDistance=20;
 viewer.scene.screenSpaceCameraController.maximumZoomDistance=25000000;
 const keys={};let throttle=.55,pitch=.08,roll=0,heading=0,speed=145,altitude=900,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,last=performance.now(),aircraft,flightPathAngle=0,pitchRate=0,rollRate=0,physicsData={stall:false};
 const radians=Math.PI/180;
 const start={lat:13.6995,lon:-89.1198,alt:900};
 function setMessage(a,b,cls='good'){$('message').textContent=a;$('message').className=cls;$('detail').textContent=b}
-let googleTileset=null;
-async function enableGoogle3D(apiKey, saveKey=false){
- if(!apiKey || !apiKey.trim()){setMessage('Falta la API key','Crea una clave de Google Maps Platform y pulsa Google 3D para introducirla.','warn');return;}
- if(googleTileset){setMessage('Google 3D ya está activo','Las imágenes fotorealistas están cargadas.');return;}
- setMessage('Cargando Google 3D…','Conectando con Google Photorealistic 3D Tiles. Esto requiere internet.');
+let satelliteLayer=null;
+async function enableSatellite(){
+ if(satelliteLayer){satelliteLayer.show=true;osmLayer.show=false;setMessage('Satélite activo','Imágenes de Esri World Imagery sobre terreno 3D abierto.');return;}
+ setMessage('Cargando satélite…','Conectando con Esri World Imagery. Se requiere internet.');
  try{
-  const url='https://tile.googleapis.com/v1/3dtiles/root.json?key='+encodeURIComponent(apiKey.trim());
-  const tileset=await Cesium.Cesium3DTileset.fromUrl(url,{showCreditsOnScreen:true});
-  viewer.scene.primitives.add(tileset);
-  googleTileset=tileset;
+  satelliteLayer=await Cesium.ArcGisMapServerImageryProvider.fromUrl('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer');
+  viewer.imageryLayers.addImageryProvider(satelliteLayer);
   osmLayer.show=false;
-  viewer.scene.globe.show=false;
-  if(saveKey){try{localStorage.setItem('aerosim_google_maps_key',apiKey.trim());}catch(e){console.warn('No se pudo guardar la clave localmente',e);}}
-  setMessage('Google 3D activo','Fotorealismo de Google cargado. Se muestran los créditos del proveedor.');
+  setMessage('Satélite activo','Imágenes satelitales de Esri y terreno 3D de Re:Earth. Se muestran los créditos del proveedor.');
  }catch(err){
-  console.error('No se pudo cargar Google 3D:',err);
-  osmLayer.show=true;viewer.scene.globe.show=true;
-  setMessage('No se pudo cargar Google 3D','Comprueba la API key, la facturación, Map Tiles API y las restricciones de la clave. El mapa de respaldo sigue activo.','warn');
+  console.warn('No se pudo cargar Esri World Imagery:',err);
+  osmLayer.show=true;
+  setMessage('Satélite no disponible','Se mantiene OpenStreetMap. Puedes volver a probar con el botón Satélite.','warn');
  }
 }
-$('google3d').onclick=()=>{
- let saved='';try{saved=localStorage.getItem('aerosim_google_maps_key')||'';}catch(e){}
- const key=prompt('Pega tu Google Maps Platform API key. Se guardará solo en este navegador, no en el código de GitHub:',saved);
- if(key!==null)enableGoogle3D(key,true);
-};
+$('satellite').onclick=enableSatellite;
 function makePlane(){
  const position=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
  aircraft=viewer.entities.add({name:'AeroSim aircraft',position,orientation:Cesium.Transforms.headingPitchRollQuaternion(position,new Cesium.HeadingPitchRoll(heading,pitch,roll)),
@@ -106,8 +97,8 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  $('speed').textContent=Math.round(speed);$('alt').textContent=Math.round(altitude);$('power').textContent=Math.round(throttle*100);$('bank').textContent=Math.round(roll*57.3);$('health').textContent=health;$('coords').textContent=lat.toFixed(3)+', '+lon.toFixed(3);
 }
 reset();requestAnimationFrame(tick);
-setMessage('Mundo 3D cargado','Globo mundial listo. Pulsa «Google 3D» para activar las ciudades fotorealistas. La clave se guarda solo en este navegador.');
-try{const savedKey=localStorage.getItem('aerosim_google_maps_key');if(savedKey)enableGoogle3D(savedKey,false);}catch(e){}
+setMessage('Mundo 3D cargado','Globo Cesium con terreno 3D abierto. Pulsa «Satélite» para activar imágenes aéreas.');
+enableSatellite();
 })();
 </script>
 </body></html>
