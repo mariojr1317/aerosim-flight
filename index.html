@@ -33,6 +33,8 @@ const viewer=new Cesium.Viewer('cesiumContainer',{
 });
 viewer.scene.globe.enableLighting=true;
 viewer.scene.globe.depthTestAgainstTerrain=true;
+// Intenta cargar elevación mundial real desde el servicio público de terreno de Cesium.
+try{const terrain=await Cesium.CesiumTerrainProvider.fromUrl('https://assets.agi.com/stk-terrain/v1/tilesets/world/tiles');viewer.terrainProvider=terrain;setMessage('Terreno 3D conectado','Elevación mundial activada. La disponibilidad depende del servicio externo.');}catch(err){console.warn('No se pudo cargar el terreno 3D; se mantiene el globo base.',err);setMessage('Mapa cargado; terreno limitado','El proveedor de elevación no respondió. El mapa sigue disponible, pero las montañas no tendrán altura real.','warn');}
 viewer.scene.screenSpaceCameraController.minimumZoomDistance=20;
 viewer.scene.screenSpaceCameraController.maximumZoomDistance=25000000;
 const keys={};let throttle=.55,pitch=0,roll=0,heading=0,speed=65,altitude=900,lat=13.6995,lon=-89.1198,health=100,gear=true,follow=true,crashed=false,last=performance.now(),aircraft;
