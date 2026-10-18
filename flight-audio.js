@@ -17,6 +17,13 @@ window.AeroAudio = (() => {
   ];
   let stations=fallbackStations.slice(), lastPosition=null, lastLookupPosition=null, lastLookupAt=0, lookupPending=false, ctx=null, master=null, engineGain=null, windGain=null, noiseSource=null, engineOsc1=null, engineOsc2=null, engineFilter=null;
   let radio=null, tracks=[], trackIndex=0, uiReady=false, lastCrash=0;
+  // Grabaciones reales de Wikimedia Commons publicadas en dominio público.
+  const REAL_AUDIO={
+    cabin:"https://commons.wikimedia.org/wiki/Special:Redirect/file/Sound_in_air_plane_1.ogg",
+    explosion:"https://commons.wikimedia.org/wiki/Special:Redirect/file/Explosion_10.ogg",
+    impact:"https://commons.wikimedia.org/wiki/Special:Redirect/file/Explosion-LS100155.ogg"
+  };
+  let realEngine=null,realExplosion=null,realImpact=null,realAudioUnlocked=false;
   const $=id=>document.getElementById(id);
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   function ensureAudio(){
@@ -39,12 +46,22 @@ window.AeroAudio = (() => {
   function setupUI(){
     if(uiReady||!$("radioStation"))return;uiReady=true;
     radio=$("radioStream");radio.preload="none";
+    realEngine=new Audio(REAL_AUDIO.cabin);realEngine.loop=true;realEngine.preload="auto";realEngine.volume=.34;
+    realExplosion=new Audio(REAL_AUDIO.explosion);realExplosion.preload="auto";realExplosion.volume=.95;
+    realImpact=new Audio(REAL_AUDIO.impact);realImpact.preload="auto";realImpact.volume=.55;
+    for(const a of [realEngine,realExplosion,realImpact])a.addEventListener("error",()=>console.warn("No se pudo cargar una grabación real de audio:",a.currentSrc));
     if($("radioStation").options.length===0){for(const s of stations){const o=document.createElement("option");o.value=s.url;o.textContent=s.name;$("radioStation").appendChild(o);}}
     const nearbyBtn=$("radioNearby");
     if(nearbyBtn)nearbyBtn.addEventListener("click",()=>{if(lastPosition)loadNearbyStations(lastPosition.lat,lastPosition.lon,true);else setStatus("Esperando las coordenadas del avión…");});
     radio.addEventListener("error",()=>{setStatus("La emisora seleccionada no respondió. Elige otra y pulsa Radio.");$("radioPlay").textContent="▶ Radio";});
     radio.addEventListener("playing",()=>setStatus("Reproduciendo radio por internet."));
-    $("soundEnable").addEventListener("click",()=>{ensureAudio();if(ctx&&ctx.state==="suspended")ctx.resume();setStatus("Sonido de motor y viento activado.");});
+    $("soundEnable").addEventListener("click",async()=>{
+      ensureAudio();if(ctx&&ctx.state==="suspended")await ctx.resume().catch(()=>{});
+      realAudioUnlocked=true;
+      if(realEngine){realEngine.volume=Number($("engineVolume").value)/100*.62;try{await realEngine.play();}catch(e){setStatus("No se pudo cargar la grabación real del avión; se mantiene el motor de respaldo.");}}
+      setStatus("Audio activado: grabación real de cabina, motor de respaldo y viento. Las explosiones usan grabaciones reales.");
+      $("soundEnable").textContent="🔊 Sonidos reales activados";
+    });
     $("radioPlay").addEventListener("click",async()=>{
       ensureAudio();const s=stations.find(x=>x.url===$("radioStation").value);
       if(s&&s.page){window.open(s.site,"_blank","noopener");setStatus("SUR FM se abre en su página oficial; pulsa play allí.");return;}
@@ -54,7 +71,7 @@ window.AeroAudio = (() => {
     });
     $("radioStation").addEventListener("change",()=>{radio.pause();radio.removeAttribute("src");radio.load();$("radioPlay").textContent="▶ Radio";setStatus("Emisora seleccionada. Pulsa Radio para escuchar.");});
     $("radioVolume").addEventListener("input",()=>{if(radio)radio.volume=Number($("radioVolume").value)/100;$("radioVolLabel").textContent=$("radioVolume").value+"%";});
-    $("engineVolume").addEventListener("input",()=>{$("engineVolLabel").textContent=$("engineVolume").value+"%";if(engineGain)engineGain.gain.setTargetAtTime(Number($("engineVolume").value)/100*.42,ctx.currentTime,.08);if(windGain)windGain.gain.setTargetAtTime(Number($("engineVolume").value)/100*.25,ctx.currentTime,.08);});
+    $("engineVolume").addEventListener("input",()=>{$("engineVolLabel").textContent=$("engineVolume").value+"%";if(engineGain&&ctx)engineGain.gain.setTargetAtTime(Number($("engineVolume").value)/100*.16,ctx.currentTime,.08);if(windGain&&ctx)windGain.gain.setTargetAtTime(Number($("engineVolume").value)/100*.25,ctx.currentTime,.08);if(realEngine)realEngine.volume=Number($("engineVolume").value)/100*.62;});
     $("mp3Files").addEventListener("change",e=>{
       for(const f of Array.from(e.target.files||[])){if(!f.type.startsWith("audio/")&&!/\.mp3$/i.test(f.name))continue;tracks.push({name:f.name,url:URL.createObjectURL(f)});}
       renderTracks();if(tracks.length){trackIndex=tracks.length-(e.target.files?.length||1);playTrack(trackIndex);}
@@ -121,8 +138,15 @@ window.AeroAudio = (() => {
     engineFilter.frequency.setTargetAtTime(180+th*1050+v*500,now,.15);
     const vol=Number($("engineVolume")?.value??55)/100;
     const active=s.crashed?0:(s.landed?.16:.24+v*.2);
-    engineGain.gain.setTargetAtTime(active*vol*(.12+th*.88),now,.18);
+    engineGain.gain.setTargetAtTime(active*vol*(.035+th*.18),now,.18);
     windGain.gain.setTargetAtTime(s.crashed?0:vol*(.008+v*v*.18),now,.3);
+    if(realEngine){
+      realEngine.playbackRate=clamp(.82+th*.42+v*.28,.75,1.55);
+      if(s.crashed||s.landed&&th<.03)realEngine.volume=vol*.10;
+      else realEngine.volume=vol*(.22+th*.36+v*.08);
+      if(realAudioUnlocked&&realEngine.paused&&!s.crashed)realEngine.play().catch(()=>{});
+      if(s.crashed&&!realEngine.paused)realEngine.pause();
+    }
   }
   function burst({duration=.7,frequency=90,volume=.8,filter=1200}={}){
     ensureAudio();if(!ctx||!master)return;const now=ctx.currentTime;
@@ -134,9 +158,20 @@ window.AeroAudio = (() => {
     const osc=ctx.createOscillator();const og=ctx.createGain();osc.type="sine";osc.frequency.setValueAtTime(frequency,now);osc.frequency.exponentialRampToValueAtTime(Math.max(24,frequency*.35),now+duration);og.gain.setValueAtTime(volume*.8,now);og.gain.exponentialRampToValueAtTime(.001,now+duration);
     src.connect(lp);lp.connect(gain);gain.connect(master);osc.connect(og);og.connect(master);src.start();osc.start();src.stop(now+duration);osc.stop(now+duration);
   }
-  function crash(){const now=performance.now();if(now-lastCrash<1800)return;lastCrash=now;ensureAudio();if(engineGain&&ctx)engineGain.gain.setTargetAtTime(0,ctx.currentTime,.04);burst({duration:1.8,frequency:68,volume:1,filter:850});setTimeout(()=>burst({duration:.55,frequency:42,volume:.45,filter:350}),100);setTimeout(()=>burst({duration:.8,frequency:125,volume:.28,filter:1800}),180);}
-  function impact(){burst({duration:.22,frequency:95,volume:.45,filter:500});}
-  function reset(){if(engineGain&&ctx)engineGain.gain.setTargetAtTime(0,ctx.currentTime,.1);}
+  function playRealOneShot(audio,volume=1){
+    if(!audio||!realAudioUnlocked)return;
+    try{audio.pause();audio.currentTime=0;audio.volume=volume;const p=audio.play();if(p&&p.catch)p.catch(()=>{});}catch(e){console.warn("No se pudo reproducir el efecto real",e);}
+  }
+  function crash(){
+    const now=performance.now();if(now-lastCrash<1800)return;lastCrash=now;ensureAudio();
+    if(engineGain&&ctx)engineGain.gain.setTargetAtTime(0,ctx.currentTime,.04);
+    if(realEngine)realEngine.pause();
+    playRealOneShot(realExplosion,.95);
+    setTimeout(()=>playRealOneShot(realImpact,.62),180);
+    burst({duration:1.1,frequency:55,volume:.18,filter:500});
+  }
+  function impact(){playRealOneShot(realImpact,.45);burst({duration:.12,frequency:80,volume:.10,filter:350});}
+  function reset(){if(engineGain&&ctx)engineGain.gain.setTargetAtTime(0,ctx.currentTime,.1);if(realEngine&&realAudioUnlocked)realEngine.play().catch(()=>{});}
   function init(){setupUI();}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
   return Object.freeze({update,crash,impact,reset,stations});
