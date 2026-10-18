@@ -157,7 +157,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  if(keys.arrowup)throttle=Math.min(1,throttle+dt*.25);if(keys.arrowdown)throttle=Math.max(0,throttle-dt*.25);
  const pitchInput=(keys.w?1:0)-(keys.s?1:0);
  const rollInput=(keys.a?1:0)-(keys.d?1:0);
- const state={speed,altitude,pitch,roll,heading,flightPathAngle,pitchRate,rollRate};
+ const state={speed,altitude,groundHeight,pitch,roll,heading,flightPathAngle,pitchRate,rollRate};
  physicsData=AeroPhysics.step(state,{throttle,pitch:pitchInput,roll:rollInput},dt);
  speed=state.speed;altitude=state.altitude;heading=state.heading;flightPathAngle=state.flightPathAngle;
  pitch=state.pitch;roll=state.roll;pitchRate=state.pitchRate;rollRate=state.rollRate;
