@@ -91,7 +91,7 @@ function mpState(){return {lat,lon,altitude,heading,pitch,roll,speed,crashed,lan
 function mpSetupConnection(conn){
  mpConnections.set(conn.peer,conn);
  conn.on('open',()=>{mpStatus('Mundo global · '+(mpHost?'anfitrión':'conectado')+' · jugadores: '+mpConnections.size);mpSend(conn,{type:'state',id:mpPeer?.id,state:mpState()});});
- conn.on('data',msg=>{if(!msg||typeof msg!=='object')return;if(mpHost){if(msg.type==='state'){mpReceiveState(conn.peer,msg.state);mpBroadcast({type:'state',id:conn.peer,state:msg.state},conn.peer);}else if(msg.type==='crash'){mpBroadcast({type:'crash',id:msg.id});}}else if(msg.type==='state'){mpReceiveState(msg.id,msg.state);}else if(msg.type==='crash'){const p=remotePlanes.get(msg.id);if(p){p.state.crashed=true;p.entity.model.show=false;}}});
+ conn.on('data',msg=>{if(!msg||typeof msg!=='object')return;if(mpHost){if(msg.type==='state'){mpReceiveState(conn.peer,msg.state);mpBroadcast({type:'state',id:conn.peer,state:msg.state},conn.peer);}else if(msg.type==='crash'){const p=remotePlanes.get(msg.id);if(p){p.state.crashed=true;spawnRemoteWreckage(msg.id);}mpBroadcast({type:'crash',id:msg.id});}}else if(msg.type==='state'){mpReceiveState(msg.id,msg.state);}else if(msg.type==='crash'){const p=remotePlanes.get(msg.id);if(p){p.state.crashed=true;spawnRemoteWreckage(msg.id);}}});
  conn.on('close',()=>{mpConnections.delete(conn.peer);removeRemotePlane(conn.peer);if(mpHost){mpStatus('Mundo global · jugadores: '+mpConnections.size);}else{mpStatus('Reconectando al mundo global…');mpScheduleReconnect();}});
  conn.on('error',e=>console.warn('Peer connection:',e));
 }
@@ -99,9 +99,40 @@ function mpReceiveState(id,s){
  if(!s||!id||id===mpPeer?.id)return;
  let p=remotePlanes.get(id);
  if(!p){const pos=Cesium.Cartesian3.fromDegrees(s.lon,s.lat,s.altitude);const entity=viewer.entities.add({name:'Avión multijugador '+id,position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(s.heading-Cesium.Math.PI_OVER_TWO,s.pitch,s.roll)),model:{uri:'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',minimumPixelSize:48,maximumScale:400},label:{text:'Piloto '+String(id).slice(-4),font:'12px sans-serif',fillColor:Cesium.Color.LIME,outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,verticalOrigin:Cesium.VerticalOrigin.BOTTOM,pixelOffset:new Cesium.Cartesian2(0,-20)}});p={entity,state:s};remotePlanes.set(id,p);}
- p.state=s;p.entity.position=Cesium.Cartesian3.fromDegrees(s.lon,s.lat,s.altitude);p.entity.orientation=Cesium.Transforms.headingPitchRollQuaternion(p.entity.position,new Cesium.HeadingPitchRoll(s.heading-Cesium.Math.PI_OVER_TWO,s.pitch,s.roll));if(p.entity.model)p.entity.model.show=!s.crashed;
+ p.state=s;if(!p.wreckage){p.entity.position=Cesium.Cartesian3.fromDegrees(s.lon,s.lat,s.altitude);p.entity.orientation=Cesium.Transforms.headingPitchRollQuaternion(p.entity.position,new Cesium.HeadingPitchRoll(s.heading-Cesium.Math.PI_OVER_TWO,s.pitch,s.roll));if(p.entity.model)p.entity.model.show=!s.crashed;}if(s.crashed)spawnRemoteWreckage(id);
 }
-function removeRemotePlane(id){const p=remotePlanes.get(id);if(p)viewer.entities.remove(p.entity);remotePlanes.delete(id);}
+function spawnRemoteWreckage(id){
+ const p=remotePlanes.get(id);if(!p||p.wreckage)return;
+ p.wreckage=true;
+ const s=p.state,baseLat=s.lat,baseLon=s.lon,baseAlt=s.altitude,baseHeading=s.heading||0;
+ const ground=viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(baseLon,baseLat))??Math.max(0,baseAlt-2);
+ const pieces=[
+  {x:0,y:0,z:1,kind:'ellipsoid',size:[3.3,.65,.62],color:'#303438'},
+  {x:-2.4,y:0,z:1.2,kind:'box',size:[2.1,.75,.18],color:'#555b60'},
+  {x:0,y:2.3,z:.8,kind:'box',size:[1.7,2.3,.13],color:'#747a7e'},
+  {x:0,y:-2.3,z:.8,kind:'box',size:[1.7,2.3,.13],color:'#747a7e'},
+  {x:-2.8,y:1.4,z:.6,kind:'box',size:[1.2,.65,.15],color:'#444a4e'},
+  {x:-2.8,y:-1.4,z:.6,kind:'box',size:[1.2,.65,.15],color:'#444a4e'},
+  {x:-3.5,y:0,z:1.3,kind:'box',size:[.8,.15,1],color:'#383e42'},
+  {x:2.4,y:.8,z:.7,kind:'box',size:[1,.5,.15],color:'#9b4c20'},
+  {x:2.8,y:-.8,z:.7,kind:'box',size:[.8,.45,.15],color:'#42484c'}
+ ];
+ const rot=Cesium.Matrix3.fromRotationZ(baseHeading);
+ const positionFor=(x,y,z)=>{const east=x/(111320*Math.max(.15,Math.cos(baseLat*radians))),north=y/111320;return Cesium.Cartesian3.fromDegrees(baseLon+east,baseLat+north,ground+z);};
+ for(const f of pieces){
+  const xy=Cesium.Matrix3.multiplyByVector(rot,new Cesium.Cartesian3(f.x,f.y,0),new Cesium.Cartesian3());
+  const pos=positionFor(xy.x,xy.y,f.z);
+  const shape=f.kind==='ellipsoid'?{ellipsoid:{radii:new Cesium.Cartesian3(...f.size),material:Cesium.Color.fromCssColorString(f.color),outline:true,outlineColor:Cesium.Color.BLACK}}:{box:{dimensions:new Cesium.Cartesian3(...f.size),material:Cesium.Color.fromCssColorString(f.color),outline:true,outlineColor:Cesium.Color.BLACK}};
+  p.wreckageEntities=p.wreckageEntities||[];
+  p.wreckageEntities.push(viewer.entities.add({name:'Restos de avión multijugador',position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(baseHeading+(Math.random()-.5)*.7,(Math.random()-.5)*.25,(Math.random()-.5)*.35)),...shape}));
+ }
+ for(let i=0;i<5;i++){
+  const pos=positionFor((Math.random()-.5)*2,(Math.random()-.5)*2,1.5+i*.7);
+  p.wreckageEntities.push(viewer.entities.add({name:'Humo de colisión multijugador',position:pos,ellipsoid:{radii:new Cesium.Cartesian3(1.1+i*.25,1.1+i*.25,1.4+i*.3),material:Cesium.Color.fromCssColorString('#292d31').withAlpha(.62-i*.08),outline:false}}));
+ }
+ p.entity.model.show=false;
+}
+function removeRemotePlane(id){const p=remotePlanes.get(id);if(p){viewer.entities.remove(p.entity);for(const e of (p.wreckageEntities||[]))viewer.entities.remove(e);}remotePlanes.delete(id);}
 function mpCleanup(){if(mpPeer){try{mpPeer.destroy();}catch(e){}}mpPeer=null;mpHost=false;mpConnections.clear();for(const id of [...remotePlanes.keys()])removeRemotePlane(id);}
 function mpScheduleReconnect(){if(mpReconnectPending)return;mpReconnectPending=true;setTimeout(()=>{mpReconnectPending=false;mpConnectWorld();},2500);}
 function mpBecomeGuest(){
