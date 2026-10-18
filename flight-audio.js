@@ -52,7 +52,7 @@ window.AeroAudio = (() => {
     for(const a of [realEngine,realExplosion,realImpact])a.addEventListener("error",()=>console.warn("No se pudo cargar una grabación real de audio:",a.currentSrc));
     if($("radioStation").options.length===0){for(const s of stations){const o=document.createElement("option");o.value=s.url;o.textContent=s.name;$("radioStation").appendChild(o);}}
     const nearbyBtn=$("radioNearby");
-    if(nearbyBtn)nearbyBtn.addEventListener("click",()=>{if(lastPosition)loadNearbyStations(lastPosition.lat,lastPosition.lon,true);else setStatus("Esperando las coordenadas del avión…");});
+    if(nearbyBtn)nearbyBtn.addEventListener("click",()=>detectUserLocation(true));
     radio.addEventListener("error",()=>{setStatus("La emisora seleccionada no respondió. Elige otra y pulsa Radio.");$("radioPlay").textContent="▶ Radio";});
     radio.addEventListener("playing",()=>setStatus("Reproduciendo radio por internet."));
     $("soundEnable").addEventListener("click",async()=>{
@@ -85,7 +85,8 @@ window.AeroAudio = (() => {
     $("mp3Player").addEventListener("pause",()=>{$("mp3Play").textContent="▶ Reproducir MP3";});
     $("mp3Volume").addEventListener("input",()=>{$("mp3Player").volume=Number($("mp3Volume").value)/100;$("mp3VolLabel").textContent=$("mp3Volume").value+"%";});
     $("radioVolume").dispatchEvent(new Event("input"));$("mp3Volume").dispatchEvent(new Event("input"));$("engineVolume").dispatchEvent(new Event("input"));
-    setStatus("Buscando emisoras cercanas a la ubicación del avión…");
+    setStatus("Detectando tu país para cargar sus emisoras…");
+    detectUserLocation(false);
   }
   function renderTracks(){const list=$("mp3List");if(!list)return;list.textContent=tracks.length?tracks.map((t,i)=>(i+1)+". "+t.name).join(" · "):"Ningún archivo seleccionado.";}
   async function playTrack(i){if(!tracks.length)return;ensureAudio();trackIndex=(i+tracks.length)%tracks.length;const a=$("mp3Player");a.src=tracks[trackIndex].url;a.volume=Number($("mp3Volume").value)/100;try{await a.play();setStatus("MP3 local: "+tracks[trackIndex].name);}catch(e){setStatus("No se pudo reproducir el archivo seleccionado.");}}
@@ -93,6 +94,63 @@ window.AeroAudio = (() => {
     const rad=x=>x*Math.PI/180,dl=rad(c-a),dn=rad(d-b);
     const h=Math.sin(dl/2)**2+Math.cos(rad(a))*Math.cos(rad(c))*Math.sin(dn/2)**2;
     return 6371*2*Math.atan2(Math.sqrt(h),Math.sqrt(Math.max(0,1-h)));
+  }
+  function fillStationList(list, countryLabel, statusPrefix="") {
+    const select=$("radioStation"),old=select.value;
+    stations=list;
+    select.replaceChildren();
+    for(const st of stations){const option=document.createElement("option");option.value=st.url;option.textContent=st.name;select.appendChild(option);}
+    if(stations.some(st=>st.url===old))select.value=old;
+    else{if(radio){radio.pause();radio.removeAttribute("src");radio.load();}$("radioPlay").textContent="▶ Radio";}
+    setStatus(statusPrefix+" "+stations.length+" emisoras de "+countryLabel+". Selecciona una y pulsa Radio.");
+  }
+  async function detectUserLocation(manual=false){
+    if(!navigator.geolocation){
+      setStatus("Este navegador no permite detectar ubicación. Se muestran radios de El Salvador como alternativa.");
+      loadStationsByCountry("SV","El Salvador",manual);return;
+    }
+    const btn=$("radioNearby");if(btn){btn.disabled=true;btn.textContent="Detectando ubicación…";}
+    if(manual)setStatus("El navegador te pedirá permiso para consultar tu ubicación. No se comparte con otros jugadores.");
+    navigator.geolocation.getCurrentPosition(async position=>{
+      const lat=position.coords.latitude,lon=position.coords.longitude;
+      try{
+        const geo=await fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat="+encodeURIComponent(lat)+"&lon="+encodeURIComponent(lon),{headers:{Accept:"application/json"}});
+        if(!geo.ok)throw new Error("No se pudo determinar el país");
+        const place=await geo.json(),address=place.address||{},code=String(address.country_code||"").toUpperCase(),country=address.country||"tu país";
+        if(!/^[A-Z]{2}$/.test(code))throw new Error("País no identificado");
+        await loadStationsByCountry(code,country,manual);
+      }catch(err){
+        console.warn("No se pudo determinar el país por ubicación:",err);
+        if(btn){btn.disabled=false;btn.textContent="📍 Detectar mi ubicación";}
+        setStatus("No pude identificar tu país por internet. Comprueba la conexión y vuelve a pulsar Detectar mi ubicación.");
+      }
+    },error=>{
+      if(btn){btn.disabled=false;btn.textContent="📍 Detectar mi ubicación";}
+      if(error.code===1)setStatus("Permiso de ubicación denegado. Permite la ubicación del sitio en Chrome y vuelve a intentarlo.");
+      else setStatus("No pude obtener tu ubicación. Comprueba los permisos y vuelve a intentarlo.");
+      if(manual)console.warn("Geolocalización:",error.message);
+    },{enableHighAccuracy:false,timeout:12000,maximumAge:300000});
+  }
+  async function loadStationsByCountry(code,country,manual=false){
+    const btn=$("radioNearby");if(btn){btn.disabled=true;btn.textContent="Cargando radios…";}
+    try{
+      const url="https://de1.api.radio-browser.info/json/stations/bycountrycodeexact/"+encodeURIComponent(code)+"?hidebroken=true&order=clickcount&reverse=true&limit=100";
+      const response=await fetch(url,{headers:{Accept:"application/json"}});
+      if(!response.ok)throw new Error("HTTP "+response.status);
+      const data=await response.json();
+      const found=(Array.isArray(data)?data:[]).filter(x=>x&&x.name&&x.url_resolved&&/^https:\/\//i.test(x.url_resolved))
+        .map(x=>({name:(x.name||"Emisora").trim(),url:x.url_resolved,site:x.homepage||"",country:x.country||country,countrycode:code}))
+        .filter((x,i,arr)=>arr.findIndex(y=>y.url===x.url)===i).slice(0,60);
+      if(!found.length)throw new Error("No hay emisoras HTTPS registradas");
+      fillStationList(found,country,"Ubicación detectada: "+country+".");
+      if(btn)btn.textContent="📍 Detectar mi ubicación";
+    }catch(err){
+      console.warn("Radios del país:",err);
+      if(code==="SV"){
+        fillStationList(fallbackStations.map(s=>({...s,country:"El Salvador",countrycode:"SV"})),"El Salvador","No pude consultar el catálogo; uso las radios salvadoreñas incluidas.");
+      }else setStatus("No encontré emisoras HTTPS para "+country+". Vuelve a detectar la ubicación o comprueba tu conexión.");
+      if(btn)btn.textContent="📍 Detectar mi ubicación";
+    }finally{if(btn)btn.disabled=false;}
   }
   async function loadNearbyStations(lat,lon,manual=false){
     if(lookupPending||!Number.isFinite(lat)||!Number.isFinite(lon))return;
@@ -121,7 +179,7 @@ window.AeroAudio = (() => {
       setStatus("No pude consultar radios cercanas por internet. Se mantienen las emisoras de El Salvador.");
       if(manual)console.warn("Radios cercanas:",err);
     }finally{
-      lastLookupAt=Date.now();lookupPending=false;if(btn){btn.disabled=false;btn.textContent="📡 Radios cercanas";}
+      lastLookupAt=Date.now();lookupPending=false;if(btn){btn.disabled=false;btn.textContent="📍 Detectar mi ubicación";}
     }
   }
   function update(s){
@@ -129,8 +187,7 @@ window.AeroAudio = (() => {
     if(Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lon))){
       const pos={lat:Number(s.lat),lon:Number(s.lon)};
       lastPosition=pos;
-      const moved=!lastLookupPosition||distanceKm(lastLookupPosition.lat,lastLookupPosition.lon,pos.lat,pos.lon)>80;
-      if(!lookupPending&&(!lastLookupAt||((Date.now()-lastLookupAt)>180000&&moved)))loadNearbyStations(pos.lat,pos.lon,false);
+      // La lista de radios depende de la ubicación real del usuario, no de dónde vuele el avión.
     }
     ensureAudio();if(!ctx)return;
     const now=ctx.currentTime,th=clamp(Number(s.throttle)||0,0,1),v=clamp((Number(s.speed)||0)/220,0,1),f=45+th*90+v*35;
