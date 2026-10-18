@@ -15,7 +15,7 @@ window.AeroAudio = (() => {
     {name:"100.7 Stereo",url:"https://stream20.usastreams.com/8138/stream",site:"https://www.radioselsalvador.org/"},
     {name:"SUR FM · 105.3 FM",url:"https://surfmradio.com/",site:"https://surfmradio.com/",page:true}
   ];
-  let stations=fallbackStations.slice(), lastPosition=null, lastLookupAt=0, lookupPending=false, ctx=null, master=null, engineGain=null, windGain=null, noiseSource=null, engineOsc1=null, engineOsc2=null, engineFilter=null;
+  let stations=fallbackStations.slice(), lastPosition=null, lastLookupPosition=null, lastLookupAt=0, lookupPending=false, ctx=null, master=null, engineGain=null, windGain=null, noiseSource=null, engineOsc1=null, engineOsc2=null, engineFilter=null;
   let radio=null, tracks=[], trackIndex=0, uiReady=false, lastCrash=0;
   const $=id=>document.getElementById(id);
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -79,7 +79,7 @@ window.AeroAudio = (() => {
   }
   async function loadNearbyStations(lat,lon,manual=false){
     if(lookupPending||!Number.isFinite(lat)||!Number.isFinite(lon))return;
-    lookupPending=true;
+    lookupPending=true;lastLookupAt=Date.now();lastLookupPosition={lat,lon};
     const btn=$("radioNearby");if(btn){btn.disabled=true;btn.textContent="Buscando…";}
     if(manual)setStatus("Buscando emisoras cercanas a la posición del avión…");
     try{
@@ -99,21 +99,20 @@ window.AeroAudio = (() => {
       else{radio.pause();radio.removeAttribute("src");radio.load();$("radioPlay").textContent="▶ Radio";}
       const nearest=stations[0];
       setStatus("Encontré "+stations.length+" radios cercanas"+(nearest?" · más cercana: "+nearest.name:"")+". Selecciona una y pulsa Radio.");
-      lastLookupAt=Date.now();
     }catch(err){
       stations=fallbackStations.slice();
       setStatus("No pude consultar radios cercanas por internet. Se mantienen las emisoras de El Salvador.");
       if(manual)console.warn("Radios cercanas:",err);
     }finally{
-      lookupPending=false;if(btn){btn.disabled=false;btn.textContent="📡 Radios cercanas";}
+      lastLookupAt=Date.now();lookupPending=false;if(btn){btn.disabled=false;btn.textContent="📡 Radios cercanas";}
     }
   }
   function update(s){
     setupUI();if(!s)return;
     if(Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lon))){
       const pos={lat:Number(s.lat),lon:Number(s.lon)};
-      const moved=!lastPosition||distanceKm(lastPosition.lat,lastPosition.lon,pos.lat,pos.lon)>80;
       lastPosition=pos;
+      const moved=!lastLookupPosition||distanceKm(lastLookupPosition.lat,lastLookupPosition.lon,pos.lat,pos.lon)>80;
       if(!lookupPending&&(!lastLookupAt||((Date.now()-lastLookupAt)>180000&&moved)))loadNearbyStations(pos.lat,pos.lon,false);
     }
     ensureAudio();if(!ctx)return;
