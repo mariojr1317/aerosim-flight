@@ -108,7 +108,7 @@ $('daynight').onclick=()=>{viewer.clock.shouldAnimate=!viewer.clock.shouldAnimat
 // Los volúmenes de hitbox se mantienen calculados, pero nunca se dibujan en pantalla.
 function makePlane(){
  const position=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
- const orientation=Cesium.Transforms.headingPitchRollQuaternion(position,new Cesium.HeadingPitchRoll(heading,pitch,roll));
+ const orientation=Cesium.Transforms.headingPitchRollQuaternion(position,new Cesium.HeadingPitchRoll(heading + Cesium.Math.PI_OVER_TWO,pitch,roll));
  aircraft=viewer.entities.add({name:'AeroSim aircraft',position,orientation,
  model:{uri:'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',minimumPixelSize:64,maximumScale:400},
  point:{pixelSize:10,color:Cesium.Color.CYAN,outlineColor:Cesium.Color.WHITE,outlineWidth:2},
@@ -205,7 +205,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
 }
  if(physicsData.stall&&altitude>100){setMessage('AVISO: PÉRDIDA DE SUSTENTACIÓN','Reduce el ángulo de ataque y aumenta potencia para recuperar velocidad.','warn');}
  }
- if(aircraft){const p=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);const q=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading,pitch,roll));aircraft.position=p;aircraft.orientation=q;const rot=Cesium.Matrix3.fromQuaternion(q);for(const part of hitboxParts){const offset=Cesium.Matrix3.multiplyByVector(rot,part.offset,new Cesium.Cartesian3());part.entity.position=Cesium.Cartesian3.add(p,offset,new Cesium.Cartesian3());part.entity.orientation=q;part.entity.show=false;}}
+ if(aircraft){const p=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);const q=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading + Cesium.Math.PI_OVER_TWO,pitch,roll));aircraft.position=p;aircraft.orientation=q;const rot=Cesium.Matrix3.fromQuaternion(q);for(const part of hitboxParts){const offset=Cesium.Matrix3.multiplyByVector(rot,part.offset,new Cesium.Cartesian3());part.entity.position=Cesium.Cartesian3.add(p,offset,new Cesium.Cartesian3());part.entity.orientation=q;part.entity.show=false;}}
  if(crashed&&debrisPieces.length)updateCrashEffects(dt,now);
  follow=true;
  const cameraTarget=crashed?localPosition(0,0,groundHeight+3):Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
