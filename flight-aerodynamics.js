@@ -11,7 +11,7 @@ window.AeroAerodynamics = (() => {
     clAlpha: 5.0,
     clMax: 1.45,
     stallAlpha: 15 * Math.PI / 180,
-    maxThrust: 2600,
+    maxThrust: 4200,
     propEfficiency: 0.78,
     maxPitchRate: 0.55,
     maxRollRate: 1.05,
@@ -55,7 +55,7 @@ window.AeroAerodynamics = (() => {
     const lift = qbar * AIRCRAFT.wingArea * cl;
     const drag = qbar * AIRCRAFT.wingArea * cd;
     const availableThrust = AIRCRAFT.maxThrust * clamp(Number.isFinite(throttle) ? throttle : 0, 0, 1) *
-      clamp(1 - v / 125, 0.12, 1) * (rho / 1.225) ** 0.7;
+      clamp(1 - v / 180, 0.20, 1) * (rho / 1.225) ** 0.7;
     return { v, alpha, qbar, mach, cl, cd, lift, drag, thrust: availableThrust, stall,
       groundEffect, heightAboveGround, stallSpeed, wingArea: AIRCRAFT.wingArea,
       wingSpan: AIRCRAFT.wingSpan, aspectRatio, mass: AIRCRAFT.mass,
