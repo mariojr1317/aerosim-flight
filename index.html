@@ -234,20 +234,20 @@ function destroyAircraft(){
  for(const part of hitboxParts)viewer.entities.remove(part.entity);hitboxParts=[];
  const ground=groundHeight;
  const parts=[
-  {x:0,y:0,z:1.1,s:[5.2,2.7,1.5],color:'#303438'},
-  {x:-5,y:2,z:1.2,s:[4.2,1.4,.32],color:'#777d80'},
-  {x:4,y:-2,z:1.2,s:[4,1.3,.32],color:'#60686b'},
-  {x:-1,y:-4,z:.9,s:[2.8,1,.28],color:'#454b50'},
-  {x:2,y:4,z:1.2,s:[2.8,1,.25],color:'#777d80'},
-  {x:-7,y:-2,z:.7,s:[1.8,.8,.22],color:'#343a40'},
-  {x:7,y:2,z:.8,s:[2,.9,.24],color:'#343a40'},
-  {x:0,y:6,z:.6,s:[1.8,.8,.22],color:'#8a4b22'},
-  {x:3,y:-6,z:.6,s:[1.6,.7,.2],color:'#555b60'}
+  {x:0,y:0,z:1.7,s:[7.5,3.4,2.1],color:'#aeb8bf'},
+  {x:-5.8,y:1.8,z:1.5,s:[5.8,2.1,.55],color:'#e0e6e9'},
+  {x:5.2,y:-1.7,z:1.5,s:[5.2,1.9,.5],color:'#c4cdd2'},
+  {x:-1.2,y:-4.4,z:1.1,s:[3.8,1.4,.42],color:'#f0a33a'},
+  {x:2.2,y:4.2,z:1.4,s:[3.7,1.4,.4],color:'#d9e1e5'},
+  {x:-7.8,y:-2.1,z:1,z:[1],s:[2.5,1.1,.35],color:'#f2c14e'},
+  {x:7.4,y:2.3,z:1.1,s:[2.8,1.2,.38],color:'#f07835'},
+  {x:0,y:6.8,z:.8,s:[2.5,1.1,.32],color:'#dce5e9'},
+  {x:3.5,y:-6.5,z:.8,s:[2.3,1,.3],color:'#ffcf5a'}
  ];
  for(const p of parts){
   const z=ground+p.z,pos=localPosition(p.x,p.y,z);
-  const entity=viewer.entities.add({name:'Fragmento del fuselaje',position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(heading+(Math.random()-.5)*1.2,(Math.random()-.5)*.7,(Math.random()-.5)*.8)),box:{dimensions:new Cesium.Cartesian3(...p.s),material:Cesium.Color.fromCssColorString(p.color),outline:true,outlineColor:Cesium.Color.BLACK}});
-  debrisPieces.push({entity,x:p.x,y:p.y,z,vx:(Math.random()-.5)*22,vy:(Math.random()-.5)*22,vz:7+Math.random()*13,spin:(Math.random()-.5)*3,angle:0});
+  const entity=viewer.entities.add({name:'Restos visibles del avión',position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(heading+(Math.random()-.5)*1.2,(Math.random()-.5)*.7,(Math.random()-.5)*.8)),box:{dimensions:new Cesium.Cartesian3(...p.s),material:Cesium.Color.fromCssColorString(p.color),outline:true,outlineColor:Cesium.Color.BLACK},point:{pixelSize:9,color:Cesium.Color.fromCssColorString(p.color),outlineColor:Cesium.Color.BLACK,outlineWidth:1,disableDepthTestDistance:1000000}});
+  debrisPieces.push({entity,x:p.x,y:p.y,z,vx:(Math.random()-.5)*10,vy:(Math.random()-.5)*10,vz:2+Math.random()*5,spin:(Math.random()-.5)*1.6,angle:0});
  }
  for(let i=0;i<12;i++){
   const pos=localPosition((Math.random()-.5)*4,(Math.random()-.5)*4,ground+2+i*.4),radius=2.2+i*.22;
@@ -337,8 +337,8 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  if(crashed&&debrisPieces.length)updateCrashEffects(dt,now);
  if(window.AeroAudio)AeroAudio.update({throttle,speed,altitude,crashed,landed});
  follow=true;
- const cameraTarget=crashed?localPosition(0,0,groundHeight+3):Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
- viewer.camera.lookAt(cameraTarget,new Cesium.HeadingPitchRange(heading,crashed?-0.45:-0.16,crashed?42:65));
+ const cameraTarget=crashed?localPosition(0,0,groundHeight+4):Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
+ viewer.camera.lookAt(cameraTarget,new Cesium.HeadingPitchRange(heading,crashed?-0.45:-0.16,crashed?75:65));
  const simDate=Cesium.JulianDate.toDate(viewer.clock.currentTime);const simHour=simDate.getUTCHours();$('clock').textContent=simDate.toISOString().slice(11,19)+' UTC';$('phase').textContent=simHour>=6&&simHour<18?'Día':'Noche';$('speed').textContent=Math.round(speed);$('vspeed').textContent=(physicsData.verticalSpeed||0).toFixed(1);$('alt').textContent=Math.round(altitude);$('ground').textContent=Math.round(groundHeight);$('power').textContent=Math.round(throttle*100);$('bank').textContent=Math.round(roll*57.3);$('air').textContent=(physicsData.rho||1.225).toFixed(3);$('gravity').textContent=(physicsData.gravity||9.80665).toFixed(3);$('health').textContent=health;$('coords').textContent=lat.toFixed(3)+', '+lon.toFixed(3);
  if(debugMode){
   const fmt=(v,d=1)=>Number.isFinite(v)?v.toFixed(d):'—';
