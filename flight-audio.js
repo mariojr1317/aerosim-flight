@@ -1,6 +1,6 @@
 /* AeroSim Audio: Web Audio synthesis + online radio + local MP3 playback. */
 window.AeroAudio = (() => {
-  const stations = [
+  const fallbackStations = [
     {name:"Radio El Mundo · 93.7 FM",url:"https://streaming.mundoclasicaupa.com:8001/radioelmundo",site:"https://www.radioelmundo.com.sv/"},
     {name:"ABC · 100.1 FM",url:"https://streaming.rcs.com.sv/proxy/abc/stream",site:"https://www.abc.com.sv/"},
     {name:"La Urbana · 94.9 FM",url:"https://streaming.rcs.com.sv/proxy/urbana/stream",site:"https://www.laurbana.com.sv/"},
@@ -15,7 +15,7 @@ window.AeroAudio = (() => {
     {name:"100.7 Stereo",url:"https://stream20.usastreams.com/8138/stream",site:"https://www.radioselsalvador.org/"},
     {name:"SUR FM · 105.3 FM",url:"https://surfmradio.com/",site:"https://surfmradio.com/",page:true}
   ];
-  let ctx=null, master=null, engineGain=null, windGain=null, noiseSource=null, engineOsc1=null, engineOsc2=null, engineFilter=null;
+  let stations=fallbackStations.slice(), lastPosition=null, lastLookupAt=0, lookupPending=false, ctx=null, master=null, engineGain=null, windGain=null, noiseSource=null, engineOsc1=null, engineOsc2=null, engineFilter=null;
   let radio=null, tracks=[], trackIndex=0, uiReady=false, lastCrash=0;
   const $=id=>document.getElementById(id);
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -40,6 +40,8 @@ window.AeroAudio = (() => {
     if(uiReady||!$("radioStation"))return;uiReady=true;
     radio=$("radioStream");radio.preload="none";
     if($("radioStation").options.length===0){for(const s of stations){const o=document.createElement("option");o.value=s.url;o.textContent=s.name;$("radioStation").appendChild(o);}}
+    const nearbyBtn=$("radioNearby");
+    if(nearbyBtn)nearbyBtn.addEventListener("click",()=>{if(lastPosition)loadNearbyStations(lastPosition.lat,lastPosition.lon,true);else setStatus("Esperando las coordenadas del avión…");});
     radio.addEventListener("error",()=>{setStatus("La emisora seleccionada no respondió. Elige otra y pulsa Radio.");$("radioPlay").textContent="▶ Radio";});
     radio.addEventListener("playing",()=>setStatus("Reproduciendo radio por internet."));
     $("soundEnable").addEventListener("click",()=>{ensureAudio();if(ctx&&ctx.state==="suspended")ctx.resume();setStatus("Sonido de motor y viento activado.");});
@@ -66,12 +68,55 @@ window.AeroAudio = (() => {
     $("mp3Player").addEventListener("pause",()=>{$("mp3Play").textContent="▶ Reproducir MP3";});
     $("mp3Volume").addEventListener("input",()=>{$("mp3Player").volume=Number($("mp3Volume").value)/100;$("mp3VolLabel").textContent=$("mp3Volume").value+"%";});
     $("radioVolume").dispatchEvent(new Event("input"));$("mp3Volume").dispatchEvent(new Event("input"));$("engineVolume").dispatchEvent(new Event("input"));
-    setStatus("13 emisoras cargadas. Selecciona una y pulsa Radio; si una señal falla, prueba otra.");
+    setStatus("Buscando emisoras cercanas a la ubicación del avión…");
   }
   function renderTracks(){const list=$("mp3List");if(!list)return;list.textContent=tracks.length?tracks.map((t,i)=>(i+1)+". "+t.name).join(" · "):"Ningún archivo seleccionado.";}
   async function playTrack(i){if(!tracks.length)return;ensureAudio();trackIndex=(i+tracks.length)%tracks.length;const a=$("mp3Player");a.src=tracks[trackIndex].url;a.volume=Number($("mp3Volume").value)/100;try{await a.play();setStatus("MP3 local: "+tracks[trackIndex].name);}catch(e){setStatus("No se pudo reproducir el archivo seleccionado.");}}
+  function distanceKm(a,b,c,d){
+    const rad=x=>x*Math.PI/180,dl=rad(c-a),dn=rad(d-b);
+    const h=Math.sin(dl/2)**2+Math.cos(rad(a))*Math.cos(rad(c))*Math.sin(dn/2)**2;
+    return 6371*2*Math.atan2(Math.sqrt(h),Math.sqrt(Math.max(0,1-h)));
+  }
+  async function loadNearbyStations(lat,lon,manual=false){
+    if(lookupPending||!Number.isFinite(lat)||!Number.isFinite(lon))return;
+    lookupPending=true;
+    const btn=$("radioNearby");if(btn){btn.disabled=true;btn.textContent="Buscando…";}
+    if(manual)setStatus("Buscando emisoras cercanas a la posición del avión…");
+    try{
+      const url="https://de1.api.radio-browser.info/json/stations/search?latitude="+encodeURIComponent(lat)+"&longitude="+encodeURIComponent(lon)+"&order=distance&reverse=false&limit=40&hidebroken=true&is_https=true";
+      const response=await fetch(url,{headers:{Accept:"application/json"}});
+      if(!response.ok)throw new Error("HTTP "+response.status);
+      const data=await response.json();
+      const found=(Array.isArray(data)?data:[]).filter(x=>x&&x.name&&x.url_resolved&&/^https:\/\//i.test(x.url_resolved))
+        .map(x=>({name:(x.name||"Emisora").trim()+(x.country?" · "+x.country:""),url:x.url_resolved,site:x.homepage||"",country:x.country||"",lat:Number(x.geo_lat),lon:Number(x.geo_long),distance:Number(x.distance)||null}))
+        .filter((x,i,arr)=>arr.findIndex(y=>y.url===x.url)===i).slice(0,25);
+      if(!found.length)throw new Error("No se encontraron streams HTTPS");
+      stations=found;
+      const select=$("radioStation"),old=select.value;
+      select.replaceChildren();
+      for(const st of stations){const option=document.createElement("option");option.value=st.url;option.textContent=st.name;select.appendChild(option);}
+      if(stations.some(st=>st.url===old))select.value=old;
+      else{radio.pause();radio.removeAttribute("src");radio.load();$("radioPlay").textContent="▶ Radio";}
+      const nearest=stations[0];
+      setStatus("Encontré "+stations.length+" radios cercanas"+(nearest?" · más cercana: "+nearest.name:"")+". Selecciona una y pulsa Radio.");
+      lastLookupAt=Date.now();
+    }catch(err){
+      stations=fallbackStations.slice();
+      setStatus("No pude consultar radios cercanas por internet. Se mantienen las emisoras de El Salvador.");
+      if(manual)console.warn("Radios cercanas:",err);
+    }finally{
+      lookupPending=false;if(btn){btn.disabled=false;btn.textContent="📡 Radios cercanas";}
+    }
+  }
   function update(s){
-    setupUI();if(!s)return;ensureAudio();if(!ctx)return;
+    setupUI();if(!s)return;
+    if(Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lon))){
+      const pos={lat:Number(s.lat),lon:Number(s.lon)};
+      const moved=!lastPosition||distanceKm(lastPosition.lat,lastPosition.lon,pos.lat,pos.lon)>80;
+      lastPosition=pos;
+      if(!lookupPending&&(!lastLookupAt||((Date.now()-lastLookupAt)>180000&&moved)))loadNearbyStations(pos.lat,pos.lon,false);
+    }
+    ensureAudio();if(!ctx)return;
     const now=ctx.currentTime,th=clamp(Number(s.throttle)||0,0,1),v=clamp((Number(s.speed)||0)/220,0,1),f=45+th*90+v*35;
     engineOsc1.frequency.setTargetAtTime(f,now,.12);engineOsc2.frequency.setTargetAtTime(f*2.03,now,.12);
     engineFilter.frequency.setTargetAtTime(180+th*1050+v*500,now,.15);
