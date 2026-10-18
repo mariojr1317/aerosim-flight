@@ -32,6 +32,7 @@ const viewer=new Cesium.Viewer('cesiumContainer',{
  navigationHelpButton:false,baseLayerPicker:false,fullscreenButton:true,infoBox:false,
  selectionIndicator:false,baseLayer:new Cesium.ImageryLayer(osmProvider),
  terrainProvider:new Cesium.EllipsoidTerrainProvider(),scene3DOnly:true,
+ contextOptions:{webgl:{failIfMajorPerformanceCaveat:false}},
 });
 const osmLayer=viewer.imageryLayers.get(0);
 viewer.scene.globe.show=true;
