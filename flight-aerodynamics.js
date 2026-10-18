@@ -11,7 +11,7 @@ window.AeroAerodynamics = (() => {
     clAlpha: 5.0,
     clMax: 1.45,
     stallAlpha: 15 * Math.PI / 180,
-    maxThrust: 4200,
+    maxThrust: 6000,
     propEfficiency: 0.78,
     maxPitchRate: 0.55,
     maxRollRate: 1.05,
