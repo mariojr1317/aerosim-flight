@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AeroSim — Flight Test</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#07111c;color:#eef7ff;font:14px system-ui,Arial;overflow:hidden}
+#game{position:fixed;inset:0}canvas{display:block}
+.panel{position:fixed;background:#07111cdd;border:1px solid #ffffff26;border-radius:12px;padding:12px;backdrop-filter:blur(8px)}
+#hud{left:12px;top:12px;min-width:190px;line-height:1.65}#help{right:12px;top:12px;max-width:230px;line-height:1.6}
+#status{left:12px;bottom:12px;max-width:min(460px,calc(100vw - 24px));line-height:1.5}
+#message{font-size:16px;font-weight:700;color:#9fe4ff} .muted{color:#9eb5c8}.warn{color:#ffb36b}.bad{color:#ff7777}
+button{background:#16466b;color:white;border:1px solid #5a9fc8;border-radius:8px;padding:7px 10px;cursor:pointer}
+@media(max-width:600px){#help{top:auto;bottom:12px;right:12px;max-width:175px;font-size:12px}#status{bottom:120px}#hud{font-size:12px}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div class="panel" id="hud">
+  <b>AEROSIM · FLIGHT TEST 01</b><br>
+  Velocidad: <span id="speed">0</span> km/h<br>
+  Altitud: <span id="alt">0</span> m<br>
+  Potencia: <span id="throttle">55</span>%<br>
+  Inclinación: <span id="bank">0</span>°<br>
+  Tren: <span id="gear">Abajo</span><br>
+  Integridad: <span id="health">100</span>%
+</div>
+<div class="panel" id="help">
+  <b>CONTROLES</b><br>
+  <span class="muted">W / S</span> Cabeceo<br>
+  <span class="muted">A / D</span> Alabeo<br>
+  <span class="muted">↑ / ↓</span> Potencia<br>
+  <span class="muted">G</span> Tren de aterrizaje<br>
+  <span class="muted">R</span> Reiniciar<br>
+  <span class="muted">C</span> Cambiar cámara
+</div>
+<div class="panel" id="status">
+  <div id="message">Preparado para el vuelo</div>
+  <div class="muted" id="detail">Aumenta potencia y gana velocidad. La sustentación de esta versión es aproximada.</div>
+  <button id="reset">Reiniciar vuelo</button>
+</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
+
+const mount=document.querySelector('#game');
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87bce0);
+scene.fog=new THREE.Fog(0x87bce0,900,5000);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,0.1,10000);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;mount.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xd8efff,0x53633e,2));
+const sun=new THREE.DirectionalLight(0xffffff,2.2);sun.position.set(-300,500,200);sun.castShadow=true;scene.add(sun);
+
+const mat=(color,roughness=.8)=>new THREE.MeshStandardMaterial({color,roughness});
+const grass=mat(0x4b754b), asphalt=mat(0x343b43), white=mat(0xe9ecee), yellow=mat(0xf3c34e), metal=mat(0x9aa9b5,.45), blue=mat(0x1765a3,.45), glass=new THREE.MeshStandardMaterial({color:0x86d6f5,metalness:.25,roughness:.2});
+function box(parent,w,h,d,material,x=0,y=0,z=0){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m}
+function cyl(parent,r1,r2,len,material,x,y,z,rx=0,ry=0,rz=0){const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,len,12),material);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.castShadow=true;parent.add(m);return m}
+
+const ground=box(scene,10000,2,10000,grass,0,-2,0);ground.receiveShadow=true;
+const runway=box(scene,34,.12,1800,asphalt,0,-.91,0);
+for(let z=-850;z<900;z+=70)box(scene,0.65,.03,28,white,0,-.83,z);
+for(let side of [-1,1]){box(scene,.5,.03,1760,white,side*15.8,-.83,0)}
+// Runway edge lights
+for(let z=-800;z<=800;z+=80)for(let side of [-1,1]){
+ const l=new THREE.Mesh(new THREE.BoxGeometry(.7,.7,.7),new THREE.MeshStandardMaterial({color:0x8bdcff,emissive:0x1c8bff,emissiveIntensity:.6}));
+ l.position.set(side*19,-.45,z);scene.add(l);
+}
+// distant low hills
+for(let i=0;i<70;i++){
+ const r=80+Math.random()*220;
+ const hill=new THREE.Mesh(new THREE.ConeGeometry(r,80+Math.random()*180,7),grass);
+ hill.position.set((Math.random()-.5)*5000,20-r*.08, (Math.random()-.5)*5000);scene.add(hill);
+}
+
+const plane=new THREE.Group();scene.add(plane);
+const fuselage= new THREE.Group();plane.add(fuselage);
+// Local plane faces -Z, nose points forward
+cyl(fuselage,1.05,1.25,10,blue,0,0,0,Math.PI/2,0,0);
+const nose=new THREE.Mesh(new THREE.SphereGeometry(1.02,16,12),blue);nose.scale.set(1,1,.8);nose.position.set(0,0,-4.7);fuselage.add(nose);
+const tailcone=new THREE.Mesh(new THREE.ConeGeometry(.9,2,16),blue);tailcone.rotation.x=-Math.PI/2;tailcone.position.set(0,0,5.6);fuselage.add(tailcone);
+// Wings and control surfaces
+const wing=box(fuselage,19,.22,2.4,white,0,.25,-.5);
+const leftAileron=box(fuselage,5,.09,.65,yellow,-6.7,.28,.95);
+const rightAileron=box(fuselage,5,.09,.65,yellow,6.7,.28,.95);
+box(fuselage,5,.18,1.6,white,0,.65,4.2);
+box(fuselage,.22,2.1,1.5,white,0,1.55,4.65);
+box(fuselage,1.2,.16,1.3,yellow,0,2.5,4.65);
+const cockpit= new THREE.Mesh(new THREE.SphereGeometry(1,16,12),glass);cockpit.scale.set(.8,.55,1.45);cockpit.position.set(0,.78,-2.2);fuselage.add(cockpit);
+const prop=new THREE.Group();prop.position.set(0,0,-5.55);fuselage.add(prop);
+cyl(prop,.18,.18,.3,metal,0,0,0,Math.PI/2);
+const blade1=box(prop,.16,3.1,.12,metal,0,0,0);
+blade1.rotation.z=.22;const blade2=box(prop,.16,3.1,.12,metal,0,0,0);blade2.rotation.z=Math.PI/2+.22;
+// gear assemblies; wheels can detach
+function wheel(parent,x,y,z){const g=new THREE.Group();g.position.set(x,y,z);parent.add(g);cyl(g,.42,.42,.22,mat(0x22252a),0,0,0,Math.PI/2);cyl(g,.22,.22,.24,metal,0,0,0,Math.PI/2);return g}
+const gears=[wheel(fuselage,-1.1,-1.15,-1.4),wheel(fuselage,1.1,-1.15,-1.4),wheel(fuselage,0,-1.05,3.7)];
+const gearStruts=gears.map((g,i)=>{const x=g.position.x,z=g.position.z;return cyl(fuselage,.09,.09,1,metal,x,-.65,z,0,0,0)});
+const debris=[];
+const keys={};let throttle=.55,gearDown=true,health=100,camMode=0,crashed=false,damageText='',lastTime=performance.now();
+let pos=new THREE.Vector3(0,8,500),vel=new THREE.Vector3(0,0,-24);
+let pitch=0,roll=0,yaw=0,stallTimer=0;
+const ui={speed:document.querySelector('#speed'),alt:document.querySelector('#alt'),throttle:document.querySelector('#throttle'),bank:document.querySelector('#bank'),gear:document.querySelector('#gear'),health:document.querySelector('#health'),message:document.querySelector('#message'),detail:document.querySelector('#detail')};
+function reset(){pos.set(0,8,500);vel.set(0,0,-24);pitch=0;roll=0;yaw=0;throttle=.55;gearDown=true;health=100;crashed=false;damageText='';stallTimer=0;
+ gears.forEach((g,i)=>{if(!fuselage.children.includes(g))fuselage.add(g);g.visible=true;g.position.set(i===0?-1.1:i===1?1.1:0,i===2?-1.05:-1.15,i===2?3.7:-1.4)});debris.forEach(d=>scene.remove(d));debris.length=0;
+ ui.message.textContent='Preparado para el vuelo';ui.detail.textContent='Aumenta potencia y gana velocidad. La sustentación de esta versión es aproximada.'}
+document.querySelector('#reset').onclick=reset;
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(['ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault();if(e.key.toLowerCase()==='g')gearDown=!gearDown;if(e.key.toLowerCase()==='r')reset();if(e.key.toLowerCase()==='c')camMode=(camMode+1)%3});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+
+const worldUp=new THREE.Vector3(0,1,0);
+function crash(impact,reason){
+ if(crashed)return;crashed=true;health=Math.max(0,health-Math.min(100,Math.round(impact*1.8)));
+ ui.message.textContent=health<25?'AVIÓN DESTRUIDO':'¡IMPACTO!';
+ ui.message.className=health<25?'bad':'warn';
+ ui.detail.textContent=reason+' · Daño estimado: '+(100-health)+'%. Pulsa R para reiniciar.';
+ // detach one or more landing wheels for a hard impact
+ if(impact>10){const count=impact>22?3:1;for(let i=0;i<count;i++){const g=gears[i];if(g.parent){g.parent.remove(g);scene.add(g);g.position.copy(pos).add(new THREE.Vector3((Math.random()-.5)*3,1,(Math.random()-.5)*3));g.userData.v=new THREE.Vector3((Math.random()-.5)*12,5+Math.random()*7,(Math.random()-.5)*12);debris.push(g)}}}
+}
+function animate(now){
+ requestAnimationFrame(animate);const dt=Math.min((now-lastTime)/1000,.035);lastTime=now;
+ if(!crashed){
+  if(keys['arrowup'])throttle=Math.min(1,throttle+dt*.3);if(keys['arrowdown'])throttle=Math.max(0,throttle-dt*.3);
+  const control=THREE.MathUtils.clamp(vel.length()/35,.15,1.3);
+  if(keys['w'])pitch=THREE.MathUtils.clamp(pitch+dt*.65*control,-.6,.65);
+  if(keys['s'])pitch=THREE.MathUtils.clamp(pitch-dt*.65*control,-.6,.65);
+  if(keys['a'])roll=THREE.MathUtils.clamp(roll+dt*.9*control,-1.15,1.15);
+  if(keys['d'])roll=THREE.MathUtils.clamp(roll-dt*.9*control,-1.15,1.15);
+  if(!keys['a']&&!keys['d'])roll*=Math.pow(.985,dt*60);
+  yaw += Math.sin(roll)*control*dt*.35;
+  const forward=new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(pitch,yaw,roll,'YXZ')).normalize();
+  const speed=vel.length();
+  const liftFactor=THREE.MathUtils.clamp((speed-9)/25,0,1.25);
+  const lift=liftFactor*liftFactor*18*Math.cos(roll);
+  const gravity=new THREE.Vector3(0,-9.81,0);
+  const thrust=forward.clone().multiplyScalar(22*throttle);
+  const drag=vel.clone().multiplyScalar(-.012*speed);
+  const liftVec=new THREE.Vector3(0,lift,0);
+  // Bank converts some lift into turning; simplified flight model for the prototype.
+  const sideForce=new THREE.Vector3(Math.sin(roll)*lift*.7,0,0);
+  vel.addScaledVector(gravity,dt);vel.addScaledVector(thrust,dt);vel.addScaledVector(drag,dt);vel.addScaledVector(liftVec,dt);vel.addScaledVector(sideForce,dt);
+  // rudimentary directional coupling
+  vel.x+=Math.sin(yaw)*speed*.08*dt;
+  pos.addScaledVector(vel,dt);
+  // nose prop spin
+  prop.rotation.z+=dt*(30+throttle*90);
+  plane.position.copy(pos);plane.rotation.order='YXZ';plane.rotation.set(pitch,yaw,roll,'YXZ');
+  // Ground/runway collision
+  if(pos.y<2.1){
+    const impact=Math.max(0,-vel.y)*2.5+Math.abs(roll)*5+(gearDown?0:12);
+    if(pos.y<1.1 || (pos.y<2.1&&vel.y< -5)){
+      pos.y=2.1;
+      if(impact>9)crash(impact,gearDown?'Aterrizaje demasiado brusco':'Contacto con la pista sin tren de aterrizaje');
+      vel.y=Math.max(0,vel.y*.1);
+      vel.x*=.88;vel.z*=.94;
+      if(!crashed){ui.message.textContent='En tierra';ui.detail.textContent='Puedes aumentar potencia para volver a despegar.'}
+    }
+  }
+  // stall warning
+  if(speed<15&&pos.y>5){stallTimer+=dt;if(stallTimer>1.5){ui.message.textContent='AVISO: BAJA VELOCIDAD';ui.message.className='warn';ui.detail.textContent='La sustentación es insuficiente. Reduce el ángulo de cabeceo y aumenta potencia.'}}else stallTimer=0;
+  if(pos.y>2.2&&speed>18){ui.message.textContent='En vuelo';ui.message.className='';ui.detail.textContent='Mantén velocidad y controla la inclinación para estabilizar el avión.'}
+  if(health<50&&speed>30){if(Math.random()<dt*.1){yaw+=(Math.random()-.5)*.12;roll+=(Math.random()-.5)*.1}}
+ }
+ // Debris physics
+ for(const d of debris){const v=d.userData.v;if(v){v.y-=9.81*dt;d.position.addScaledVector(v,dt);d.rotation.x+=dt*2;d.rotation.z+=dt*3;if(d.position.y<-.5){d.position.y=-.5;v.y=Math.abs(v.y)*.18;v.x*=.65;v.z*=.65}}}
+ // Camera follows aircraft
+ const forward=new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(pitch,yaw,roll,'YXZ'));
+ let desired;
+ if(camMode===0)desired=pos.clone().add(new THREE.Vector3(0,7,18).applyEuler(new THREE.Euler(pitch,yaw,roll,'YXZ')));
+ else if(camMode===1)desired=pos.clone().add(new THREE.Vector3(0,2,10).applyEuler(new THREE.Euler(pitch,yaw,roll,'YXZ')));
+ else desired=pos.clone().add(new THREE.Vector3(0,1,-2).applyEuler(new THREE.Euler(pitch,yaw,roll,'YXZ')));
+ camera.position.lerp(desired,.08);camera.lookAt(camMode===2?pos.clone().add(forward.multiplyScalar(70)):pos);
+ ui.speed.textContent=Math.round(vel.length()*3.6);ui.alt.textContent=Math.max(0,Math.round(pos.y));ui.throttle.textContent=Math.round(throttle*100);ui.bank.textContent=Math.round(roll*57.3);ui.gear.textContent=gearDown?'Abajo':'Arriba';ui.health.textContent=health;
+ renderer.render(scene,camera);
+}
+reset();animate(performance.now());
+</script>
+</body>
+</html>
