@@ -137,7 +137,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  lat+=Math.cos(heading)*groundSpeed*dt/111320;
  lon+=Math.sin(heading)*groundSpeed*dt/(111320*Math.max(.15,Math.cos(lat*radians)));
  if(lon>180)lon-=360;if(lon< -180)lon+=360;lat=Math.max(-85,Math.min(85,lat));
- if(altitude<=groundHeight+3){
+ if(altitude<=groundHeight+3&&(physicsData.verticalSpeed||0)<-0.8){
   const impactSpeed=Math.abs(physicsData.verticalSpeed||0);altitude=groundHeight+2;
   if(impactSpeed>5||speed>165||!gear){health=0;crashed=true;landed=false;destroyAircraft();setMessage('AVIÓN DESTRUIDO','Impacto catastrófico: fuselaje fragmentado, restos dispersos y humo en el punto de impacto. Pulsa R para volver a la pista.','warn');}
   else{landed=true;pitch=0;roll=0;flightPathAngle=0;pitchRate=0;rollRate=0;speed=Math.min(speed,95);setMessage('Aterrizaje','Contacto con el terreno detectado. Usa ↑ para acelerar y despegar.');}
