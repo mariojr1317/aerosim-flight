@@ -30,7 +30,7 @@ Hora: <span id="clock">--:--:--</span><br>Ambiente: <span id="phase">Día</span>
 <span>Sustentación</span><span id="dbgLift">—</span>
 <span>Resistencia</span><span id="dbgDrag">—</span>
 <span>Empuje</span><span id="dbgThrust">—</span>
-<span>Presión dinámica</span><span id="dbgQbar">—</span>
+<span>Presión dinámica</span><span id="dbgQbar">—</span>\n<span>Número Mach</span><span id="dbgMach">—</span>\n<span>Factor de carga</span><span id="dbgLoad">—</span>
 <span>Cabeceo / alabeo</span><span id="dbgAttitude">—</span>
 <span>Rumbo</span><span id="dbgHeading">—</span>
 <span>Altura sobre suelo</span><span id="dbgClearance">—</span>
@@ -180,9 +180,9 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  groundHeight=viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(lon,lat)) ?? groundHeight;
  if(landed&&!crashed){
   if(keys.arrowup)throttle=Math.min(1,throttle+dt*.7);if(keys.arrowdown)throttle=Math.max(0,throttle-dt*.7);
-  const groundAcceleration=throttle*9-2.5;speed=Math.max(0,Math.min(150,speed+groundAcceleration*dt));altitude=groundHeight+2;pitch=0;roll=0;flightPathAngle=0;
+  const groundSpeedMps=speed/3.6;const groundAcceleration=throttle*2.35-0.10*groundSpeedMps-0.25;speed=Math.max(0,Math.min(220,speed+groundAcceleration*dt));altitude=groundHeight+2;pitch=0;roll=0;flightPathAngle=0;
   lat+=Math.cos(heading)*(speed/3.6)*dt/111320;lon+=Math.sin(heading)*(speed/3.6)*dt/(111320*Math.max(.15,Math.cos(lat*radians)));
-  if(speed>95&&throttle>.7){landed=false;setMessage('Carrera de despegue','Aumenta velocidad y mantén el avión alineado.');}
+  if(speed>110&&throttle>.7){landed=false;setMessage('Carrera de despegue','Aumenta velocidad y mantén el avión alineado.');}
  }
  if(!crashed&&!landed){
  if(keys.arrowup)throttle=Math.min(1,throttle+dt*.25);if(keys.arrowdown)throttle=Math.max(0,throttle-dt*.25);
@@ -219,7 +219,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
   $('dbgLift').textContent=fmt((physicsData.lift||0)/1000,2)+' kN';
   $('dbgDrag').textContent=fmt((physicsData.drag||0)/1000,2)+' kN';
   $('dbgThrust').textContent=fmt((physicsData.thrust||0)/1000,2)+' kN';
-  $('dbgQbar').textContent=fmt((physicsData.qbar||0)/1000,2)+' kPa';
+  $('dbgQbar').textContent=fmt((physicsData.qbar||0)/1000,2)+' kPa';\n  $('dbgMach').textContent=fmt(physicsData.mach||0,3);\n  $('dbgLoad').textContent=fmt(physicsData.loadFactor||0,2)+' g';
   $('dbgAttitude').textContent=fmt(pitch*180/Math.PI,1)+'° / '+fmt(roll*180/Math.PI,1)+'°';
   $('dbgHeading').textContent=fmt(((heading*180/Math.PI)%360+360)%360,1)+'°';
   $('dbgClearance').textContent=fmt(altitude-groundHeight,1)+' m';
@@ -227,7 +227,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000
  }
 }
 reset();requestAnimationFrame(tick);
-setMessage('En pista · listo para despegar','Aumenta potencia con ↑ para iniciar la carrera de despegue.');
+setMessage('En pista · listo para despegar','Aumenta potencia con ↑ para iniciar la carrera de despegue. La velocidad de rotación es aproximada.');
 })();
 </script>
 </body></html>
