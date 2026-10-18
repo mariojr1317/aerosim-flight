@@ -9,6 +9,10 @@ window.AeroAudio = (() => {
     {name:"Radio YSUCA · 91.7 FM",url:"https://fast.citrus3.com:8314/stream",site:"https://ysuca.org.sv/"},
     {name:"Radio La Chévere · 100.9 FM",url:"https://streaming.rcs.com.sv/proxy/chevere/stream",site:"https://www.lachevere.com.sv/"},
     {name:"Radio Bautista",url:"https://s2.radio.co/s3a7dc3d82/listen",site:"https://radiobautista.com/"},
+    {name:"Radio Verdad · 95.7 FM",url:"https://cloudstream2036.conectarhosting.com/8168/stream",site:"https://radioverdad.org/"},
+    {name:"Radio Rumba Latina",url:"https://c11.radioboss.fm:8303/stream",site:"https://www.radioselsalvador.org/"},
+    {name:"La Tribu FM",url:"https://streamer.radio.co/s3a3c12873/listen",site:"https://www.radioselsalvador.org/"},
+    {name:"100.7 Stereo",url:"https://stream20.usastreams.com/8138/stream",site:"https://www.radioselsalvador.org/"},
     {name:"SUR FM · 105.3 FM",url:"https://surfmradio.com/",site:"https://surfmradio.com/",page:true}
   ];
   let ctx=null, master=null, engineGain=null, windGain=null, noiseSource=null, engineOsc1=null, engineOsc2=null, engineFilter=null;
@@ -35,7 +39,7 @@ window.AeroAudio = (() => {
   function setupUI(){
     if(uiReady||!$("radioStation"))return;uiReady=true;
     radio=$("radioStream");radio.preload="none";
-    for(const s of stations){const o=document.createElement("option");o.value=s.url;o.textContent=s.name;radio.appendChild(o);}
+    for(const s of stations){const o=document.createElement("option");o.value=s.url;o.textContent=s.name; $("radioStation").appendChild(o);}
     radio.addEventListener("error",()=>setStatus("No se pudo reproducir esta señal. Prueba otra emisora o abre su web."));
     radio.addEventListener("playing",()=>setStatus("Reproduciendo radio por internet."));
     $("soundEnable").addEventListener("click",()=>{ensureAudio();if(ctx&&ctx.state==="suspended")ctx.resume();setStatus("Sonido de motor y viento activado.");});
