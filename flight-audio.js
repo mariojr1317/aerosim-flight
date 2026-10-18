@@ -38,6 +38,7 @@ window.AeroAudio = (() => {
     for(const s of stations){const o=document.createElement("option");o.value=s.url;o.textContent=s.name;radio.appendChild(o);}
     radio.addEventListener("error",()=>setStatus("No se pudo reproducir esta señal. Prueba otra emisora o abre su web."));
     radio.addEventListener("playing",()=>setStatus("Reproduciendo radio por internet."));
+    $("soundEnable").addEventListener("click",()=>{ensureAudio();if(ctx&&ctx.state==="suspended")ctx.resume();setStatus("Sonido de motor y viento activado.");});
     $("radioPlay").addEventListener("click",async()=>{
       ensureAudio();const s=stations.find(x=>x.url===$("radioStation").value);
       if(s&&s.page){window.open(s.site,"_blank","noopener");setStatus("SUR FM se abre en su página oficial; pulsa play allí.");return;}
