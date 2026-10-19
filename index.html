@@ -546,7 +546,7 @@ function tick(now){requestAnimationFrame(tick);updateCity3D();const dt=Math.min(
 }
  if(physicsData.stall&&altitude>100){setMessage('AVISO: PÉRDIDA DE SUSTENTACIÓN','Reduce el ángulo de ataque y aumenta potencia para recuperar velocidad.','warn');}
  }
- if(aircraft){const p=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);const q=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading - Cesium.Math.PI_OVER_TWO,pitch,roll));aircraft.position=p;aircraft.orientation=q;const rot=Cesium.Matrix3.fromQuaternion(q);for(const part of hitboxParts){const offset=Cesium.Matrix3.multiplyByVector(rot,part.offset,new Cesium.Cartesian3());part.entity.position=Cesium.Cartesian3.add(p,offset,new Cesium.Cartesian3());part.entity.orientation=q;part.entity.show=false;}}
+ if(aircraft){const p=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);const q=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading - Cesium.Math.PI_OVER_TWO,pitch,roll));const modelHeadingOffset=(selectedAircraft==='b737'||selectedAircraft==='aerobatic')?Math.PI:0;const modelQ=Cesium.Transforms.headingPitchRollQuaternion(p,new Cesium.HeadingPitchRoll(heading - Cesium.Math.PI_OVER_TWO+modelHeadingOffset,pitch,roll));aircraft.position=p;aircraft.orientation=modelQ;const rot=Cesium.Matrix3.fromQuaternion(q);for(const part of hitboxParts){const offset=Cesium.Matrix3.multiplyByVector(rot,part.offset,new Cesium.Cartesian3());part.entity.position=Cesium.Cartesian3.add(p,offset,new Cesium.Cartesian3());part.entity.orientation=q;part.entity.show=false;}}
  if(crashed&&debrisPieces.length)updateCrashEffects(dt,now);
  if(window.AeroAudio)AeroAudio.update({throttle,speed,altitude,lat,lon,crashed,landed});
  if(!choosingTakeoff){
