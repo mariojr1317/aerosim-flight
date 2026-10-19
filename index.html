@@ -12,10 +12,29 @@ button,select{background:#16466b;color:white;border:1px solid #5a9fc8;border-rad
 .muted{color:#9eb5c8}.warn{color:#ffbd73}.good{color:#9fe4ff}#message{font-size:16px;font-weight:700}
 #multiplayer{top:150px;left:12px;max-width:260px}#audioPanel{top:250px;right:12px;width:280px;max-height:55vh;overflow:auto;font-size:12px}#audioPanel label{display:block;margin-top:5px;color:#c5d7e5}#audioPanel input[type=range]{width:100%;margin:3px 0}#audioPanel select,#audioPanel button{max-width:100%;font-size:12px}#audioPanel input[type=file]{width:100%;font-size:11px}#mp3List{max-height:54px;overflow:auto;word-break:break-word;color:#b8cddd;font-size:11px}#mpStatus{font-size:12px;color:#9fe4ff}
 @media(max-width:600px){#audioPanel{top:140px;right:8px;width:min(205px,calc(100vw - 32px));max-height:45vh;padding:8px;font-size:11px}#help{top:auto;bottom:12px;right:12px;max-width:160px;font-size:11px}#bottom{bottom:125px;font-size:12px}#hud{font-size:12px;min-width:150px}#multiplayer{top:190px;left:8px;max-width:210px;font-size:12px}}
+.pilot-cockpit{display:none;position:fixed;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+.pilot-cockpit.active{display:block}
+.pilot-cockpit svg{width:100%;height:100%;display:block}
+@media(max-width:600px){.pilot-cockpit .dashboard-label{font-size:24px}}
 </style>
 </head>
 <body>
 <div id="cesiumContainer"></div>
+<div id="pilotCockpit" class="pilot-cockpit" aria-hidden="true">
+<svg viewBox="0 0 1000 600" preserveAspectRatio="none" role="presentation">
+ <defs><linearGradient id="dashShade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#243744"/><stop offset="1" stop-color="#050a0e"/></linearGradient><linearGradient id="glassShade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfeaff" stop-opacity=".05"/><stop offset="1" stop-color="#071722" stop-opacity=".12"/></linearGradient></defs>
+ <path d="M0 0H1000V58L920 42 850 25 760 15 670 10 500 8 330 10 240 15 150 25 80 42 0 58Z" fill="#111c24" fill-opacity=".96"/>
+ <path d="M0 0H1000V600H0Z M90 45 Q500 -25 910 45 L965 385 Q500 325 35 385Z" fill="#0a1118" fill-rule="evenodd" fill-opacity=".95"/>
+ <path d="M90 45 Q500 -25 910 45 L965 385 Q500 325 35 385Z" fill="url(#glassShade)" stroke="#273943" stroke-width="13"/>
+ <path d="M500 4L500 335 M88 45L35 385 M912 45L965 385" stroke="#1b2932" stroke-width="16" fill="none"/>
+ <path d="M0 420 Q170 382 300 418 L350 600H0Z M1000 420Q830 382 700 418L650 600H1000Z" fill="#111b23"/>
+ <path d="M0 460 Q240 400 500 450 Q760 400 1000 460V600H0Z" fill="url(#dashShade)" stroke="#344752" stroke-width="5"/>
+ <path d="M0 485Q240 430 500 478Q760 430 1000 485" stroke="#506570" stroke-width="5" fill="none"/>
+ <g fill="#d5e8ef" font-family="system-ui, sans-serif" font-size="17" opacity=".9"><text x="42" y="540">ALT</text><text x="170" y="540">V/S</text><text x="790" y="540">SPD</text><text x="900" y="540">HDG</text></g>
+ <g fill="#071017" stroke="#8aa3ad" stroke-width="5"><circle cx="88" cy="558" r="29"/><circle cx="218" cy="558" r="29"/><circle cx="782" cy="558" r="29"/><circle cx="912" cy="558" r="29"/></g>
+ <g fill="#65e5ff"><path d="M88 533l-5 25 5 5 5-5Z M218 533l-5 25 5 5 5-5Z M782 533l-5 25 5 5 5-5Z M912 533l-5 25 5 5 5-5Z"/></g>
+ <path d="M450 465L500 430 550 465 500 452Z" fill="#9fb2bc" opacity=".9"/>
+</svg></div>
 <div class="panel" id="hud"><b>AEROSIM · WORLD FLIGHT</b><br>
 Velocidad: <span id="speed">0</span> km/h<br>Velocidad vertical: <span id="vspeed">0</span> m/s<br>Altitud: <span id="alt">0</span> m<br>
 Potencia: <span id="power">55</span>%<br>Inclinación: <span id="bank">0</span>°<br>Densidad del aire: <span id="air">1.225</span> kg/m³<br>Gravedad: <span id="gravity">9.81</span> m/s²<br>
@@ -299,9 +318,10 @@ $('daynight').onclick=()=>{viewer.clock.shouldAnimate=!viewer.clock.shouldAnimat
 // Los volúmenes de hitbox se mantienen calculados, pero nunca se dibujan en pantalla.
 function makePlane(){
  const position=Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
- const orientation=Cesium.Transforms.headingPitchRollQuaternion(position,new Cesium.HeadingPitchRoll(heading - Cesium.Math.PI_OVER_TWO,pitch,roll));
+ const modelHeadingOffset=(selectedAircraft==='b737'||selectedAircraft==='aerobatic')?Math.PI:0;
+ const orientation=Cesium.Transforms.headingPitchRollQuaternion(position,new Cesium.HeadingPitchRoll(heading - Cesium.Math.PI_OVER_TWO+modelHeadingOffset,pitch,roll));
  aircraft=viewer.entities.add({name:'AeroSim aircraft',position,orientation,
- model:{uri:({cesium:'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',aerobatic:'https://raw.githubusercontent.com/BabylonJS/Assets/master/meshes/aerobatic_plane.glb',b737:'https://raw.githubusercontent.com/Flightradar24/fr24-3d-models/master/models/b737.glb'})[selectedAircraft]||'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',minimumPixelSize:64,maximumScale:400},
+ model:{uri:({cesium:'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',aerobatic:'https://raw.githubusercontent.com/bilawalsidhu/gods-eye-view/main/public/models/c172.glb',b737:'https://raw.githubusercontent.com/amvlab/aircraft-models/main/models/B737_nologo.glb'})[selectedAircraft]||'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',minimumPixelSize:selectedAircraft==='aerobatic'?85:72,maximumScale:selectedAircraft==='aerobatic'?1200:600,scale:selectedAircraft==='aerobatic'?1.8:1},
  point:{pixelSize:10,color:Cesium.Color.CYAN,outlineColor:Cesium.Color.WHITE,outlineWidth:2},
  label:{text:'AeroSim',font:'12px sans-serif',fillColor:Cesium.Color.WHITE,outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,verticalOrigin:Cesium.VerticalOrigin.BOTTOM,pixelOffset:new Cesium.Cartesian2(0,-22)},
  path:{resolution:1,material:Cesium.Color.CYAN.withAlpha(.7),width:2}});
@@ -478,8 +498,8 @@ viewer.screenSpaceEventHandler.setInputAction(async click=>{
   setMessage('No se encontró una pista cercana','Se mantiene el punto exacto que marcaste. Comprueba la conexión a internet e inténtalo de nuevo si quieres buscar aeropuertos.','warn');
  }
 },Cesium.ScreenSpaceEventType.LEFT_CLICK);
-$('map').onclick=()=>{cameraMode='chase';$('cameraMode').textContent='👨‍✈️ Vista del piloto';follow=true;viewer.camera.lookAt(Cesium.Cartesian3.fromDegrees(lon,lat,altitude),new Cesium.HeadingPitchRange(heading,-0.16,65));setMessage('Cámara externa','La cámara seguirá al avión desde fuera.');};
-$('cameraMode').onclick=()=>{cameraMode=cameraMode==='pilot'?'chase':'pilot';$('cameraMode').textContent=cameraMode==='pilot'?'🌐 Cámara externa':'👨‍✈️ Vista del piloto';if(cameraMode==='pilot')setMessage('Vista del piloto activada','La cámara está colocada delante del avión y seguirá el rumbo y la inclinación. Pulsa el botón para volver a la cámara externa.');else setMessage('Cámara externa activada','Vista de seguimiento desde fuera del avión.');};
+$('map').onclick=()=>{cameraMode='chase';$('pilotCockpit').classList.remove('active');$('pilotCockpit').setAttribute('aria-hidden','true');$('cameraMode').textContent='👨‍✈️ Vista del piloto';follow=true;viewer.camera.lookAt(Cesium.Cartesian3.fromDegrees(lon,lat,altitude),new Cesium.HeadingPitchRange(heading,-0.16,65));setMessage('Cámara externa','La cámara seguirá al avión desde fuera.');};
+$('cameraMode').onclick=()=>{cameraMode=cameraMode==='pilot'?'chase':'pilot';$('cameraMode').textContent=cameraMode==='pilot'?'🌐 Cámara externa':'👨‍✈️ Vista del piloto';$('pilotCockpit').classList.toggle('active',cameraMode==='pilot');$('pilotCockpit').setAttribute('aria-hidden',cameraMode==='pilot'?'false':'true');if(cameraMode==='pilot')setMessage('Vista desde la cabina','Cámara a la altura del piloto, con parabrisas y panel de instrumentos superpuestos. Pulsa el botón para volver a la cámara externa.');else setMessage('Cámara externa activada','Vista de seguimiento desde fuera del avión.');};
 $('aircraftSelect').onchange=()=>{selectedAircraft=$('aircraftSelect').value;const wasCrashed=crashed;if(aircraft)viewer.entities.remove(aircraft);aircraft=null;makePlane();if(wasCrashed){crashed=false;health=100;landed=true;speed=0;}setMessage('Avión seleccionado: '+$('aircraftSelect').selectedOptions[0].textContent,'El nuevo modelo se está cargando. La selección se aplica a tu avión local.');};
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=true;if(['ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault();if(/^[0-9]$/.test(e.key)){throttle=Number(e.key)/9;setMessage('Potencia: '+Math.round(throttle*100)+'%','Usa las teclas 0–9 para elegir directamente la potencia del motor.');}if(e.key==='F3'){e.preventDefault();setDebugMode(!debugMode);}if(k==='g')gear=!gear;if(k==='r')reset();if(k==='c'){follow=true;viewer.camera.lookAt(Cesium.Cartesian3.fromDegrees(lon,lat,altitude),new Cesium.HeadingPitchRange(heading,-0.22,2400));}});
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
@@ -532,9 +552,9 @@ function tick(now){requestAnimationFrame(tick);updateCity3D();const dt=Math.min(
  if(!choosingTakeoff){
   follow=true;
   if(cameraMode==='pilot'&&!crashed){
-   const forward=9,east=Math.sin(heading)*forward,north=Math.cos(heading)*forward;
+   const forward=2.8,east=Math.sin(heading)*forward,north=Math.cos(heading)*forward;
    const cameraLon=lon+east/(111320*Math.max(.15,Math.cos(lat*radians))),cameraLat=lat+north/111320;
-   viewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(cameraLon,cameraLat,altitude+1.7),orientation:{heading:heading,pitch:Cesium.Math.clamp(pitch,-.5,.5),roll:roll}});
+   viewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(cameraLon,cameraLat,altitude+1.35),orientation:{heading:heading,pitch:Cesium.Math.clamp(pitch,-.45,.45),roll:roll}});
   }else{
    const cameraTarget=crashed?localPosition(0,0,groundHeight+4):Cesium.Cartesian3.fromDegrees(lon,lat,altitude);
    viewer.camera.lookAt(cameraTarget,new Cesium.HeadingPitchRange(heading,crashed?-0.45:-0.16,crashed?75:cameraMode==='chase'?65:2400));
