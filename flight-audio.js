@@ -181,7 +181,7 @@ window.AeroAudio = (() => {
       const response=await fetch(url,{headers:{Accept:"application/json"}});
       if(!response.ok)throw new Error("HTTP "+response.status);
       const data=await response.json();
-      const found=(Array.isArray(data)?data:[]).filter(x=>x&&x.name&&x.url_resolved&&/^https:\/\//i.test(x.url_resolved))
+      let found=(Array.isArray(data)?data:[]).filter(x=>x&&x.name&&x.url_resolved&&/^https:\/\//i.test(x.url_resolved))
         .map(x=>{
           const slat=Number(x.geo_lat),slon=Number(x.geo_long);
           return {name:(x.name||"Emisora").trim(),url:x.url_resolved,site:x.homepage||"",country:x.country||"",lat:slat,lon:slon,distance:Number.isFinite(slat)&&Number.isFinite(slon)?distanceKm(lat,lon,slat,slon):Infinity};
@@ -189,24 +189,38 @@ window.AeroAudio = (() => {
         .filter(x=>Number.isFinite(x.distance)&&x.distance<=100)
         .sort((a,b)=>a.distance-b.distance)
         .filter((x,i,arr)=>arr.findIndex(y=>y.url===x.url)===i).slice(0,30);
+      // Radio Browser a menudo no tiene coordenadas de las emisoras salvadoreñas.
+      // Si el avión está en El Salvador, incluir emisoras nacionales verificadas como alternativa.
+      const inElSalvador=lat>=12.9&&lat<=14.5&&lon>=-90.2&&lon<=-87.5;
+      if(inElSalvador){
+        const salvadorStations=fallbackStations.map(st=>({...st,country:"El Salvador",countrycode:"SV",nationalFallback:true}));
+        found=[...found.filter(st=>!salvadorStations.some(fallback=>fallback.url===st.url)),...salvadorStations];
+      }
       const select=$("radioStation"),old=select.value;
       stations=found;
       select.replaceChildren();
-      for(const st of stations){const option=document.createElement("option");option.value=st.url;option.textContent=st.name+" · "+Math.round(st.distance)+" km";select.appendChild(option);}
+      for(const st of stations){const option=document.createElement("option");option.value=st.url;option.textContent=st.nationalFallback?"🇸🇻 "+st.name+" · El Salvador":st.name+" · "+Math.round(st.distance)+" km";select.appendChild(option);}
       if(stations.some(st=>st.url===old))select.value=old;
       else{radio.pause();radio.removeAttribute("src");radio.load();$("radioPlay").textContent="▶ Radio";}
       if(!found.length){
         const option=document.createElement("option");option.value="";option.textContent="No hay emisoras registradas a menos de 100 km";select.appendChild(option);
-        setStatus("No encontré radios con ubicación confirmada a menos de 100 km del avión. No mostraré emisoras lejanas.");
+        setStatus("No encontré radios con ubicación confirmada a menos de 100 km del avión.");
+      }else if(inElSalvador){
+        setStatus("Avión en El Salvador · "+found.length+" emisoras disponibles. Incluye emisoras nacionales aunque el catálogo no tenga sus coordenadas.");
       }else{
         setStatus("Avión en "+lat.toFixed(3)+", "+lon.toFixed(3)+" · "+found.length+" emisoras dentro de 100 km. La más cercana está a "+Math.round(found[0].distance)+" km.");
       }
     }catch(err){
       console.warn("Radios cercanas al avión:",err);
-      stations=[];
-      const select=$("radioStation");select.replaceChildren();
-      const option=document.createElement("option");option.value="";option.textContent="No se pudieron cargar radios cercanas";select.appendChild(option);
-      setStatus("No pude consultar radios cercanas por internet. Comprueba la conexión; no se mostrarán emisoras de todo el mundo.");
+      const inElSalvador=lat>=12.9&&lat<=14.5&&lon>=-90.2&&lon<=-87.5;
+      if(inElSalvador){
+        fillStationList(fallbackStations.map(st=>({...st,country:"El Salvador",countrycode:"SV"})),"El Salvador","No pude consultar las coordenadas; se muestran emisoras nacionales incluidas.");
+      }else{
+        stations=[];
+        const select=$("radioStation");select.replaceChildren();
+        const option=document.createElement("option");option.value="";option.textContent="No se pudieron cargar radios cercanas";select.appendChild(option);
+        setStatus("No pude consultar radios cercanas por internet. Comprueba la conexión; no se mostrarán emisoras de todo el mundo.");
+      }
     }finally{
       lastLookupAt=Date.now();lookupPending=false;if(btn){btn.disabled=false;btn.textContent="📡 Radios a menos de 100 km";}
     }
