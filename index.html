@@ -99,7 +99,7 @@ let choosingTakeoff=false,takeoffMarker=null;
 
 // Edificios 3D locales, con una carga reducida para mantener estable el render de Cesium.
 let cityBuildings=[],cityCenter={lat:NaN,lon:NaN},lastCityBuild=0,cityBuildDisabled=false;
-function clearCityBuildings(){for(const b of cityBuildings){try{viewer.entities.remove(b);}catch(e){console.warn('No se pudo retirar un edificio:',e);}}cityBuildings=[];}
+function clearCityBuildings(){for(const b of cityBuildings){try{viewer.entities.remove(b.entity||b);}catch(e){console.warn('No se pudo retirar un edificio:',e);}}cityBuildings=[];}
 function buildCity3D(centerLat,centerLon){
  if(cityBuildDisabled)return;
  // Evita posiciones inválidas si el avión o el selector de despegue salen de rango.
@@ -124,7 +124,7 @@ function buildCity3D(centerLat,centerLon){
    const ground=Math.max(0,Number.isFinite(sampledGround)?sampledGround:fallbackGround);
    const pos=Cesium.Cartesian3.fromDegrees(buildingLon,buildingLat,ground+height/2);
    if(!Number.isFinite(pos.x)||!Number.isFinite(pos.y)||!Number.isFinite(pos.z))continue;
-   cityBuildings.push(viewer.entities.add({name:'Edificio 3D',position:pos,box:{dimensions:new Cesium.Cartesian3(width,depth,height),material:Cesium.Color.fromCssColorString(palette[Math.floor(rand()*palette.length)]),outline:false}}));
+   const entity=viewer.entities.add({name:'Edificio 3D destructible',position:pos,box:{dimensions:new Cesium.Cartesian3(width,depth,height),material:Cesium.Color.fromCssColorString(palette[Math.floor(rand()*palette.length)]),outline:false}});cityBuildings.push({entity,lat:buildingLat,lon:buildingLon,width,depth,height,ground,destroyed:false});
   }
   lastCityBuild=performance.now();
   console.info('Edificios 3D generados:',cityBuildings.length);
@@ -138,6 +138,25 @@ function updateCity3D(){
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat < -85||lat > 85||lon < -180||lon > 180)return;
  const north=(lat-cityCenter.lat)*111320,east=(lon-cityCenter.lon)*111320*Math.cos(lat*radians);
  if(!Number.isFinite(cityCenter.lat)||Math.hypot(north,east)>3500)buildCity3D(lat,lon);
+}
+function destroyBuilding(building){
+ if(!building||building.destroyed)return;building.destroyed=true;
+ try{viewer.entities.remove(building.entity);}catch(e){}
+ const baseLat=building.lat,baseLon=building.lon,cos=Math.max(.15,Math.cos(baseLat*radians));
+ for(let i=0;i<7;i++){
+  const x=(Math.random()-.5)*building.width*1.7,y=(Math.random()-.5)*building.depth*1.7,z=building.ground+Math.max(.7,Math.random()*building.height*.45);
+  const pos=Cesium.Cartesian3.fromDegrees(baseLon+x/(111320*cos),baseLat+y/111320,z);
+  const sx=2+Math.random()*4,sy=1.5+Math.random()*3,sz=1+Math.random()*3;
+  viewer.entities.add({name:'Escombros de edificio destruido',position:pos,orientation:Cesium.Transforms.headingPitchRollQuaternion(pos,new Cesium.HeadingPitchRoll(Math.random()*Math.PI,Math.random()*.5,Math.random()*.5)),box:{dimensions:new Cesium.Cartesian3(sx,sy,sz),material:Cesium.Color.fromCssColorString(['#77736d','#a39b8e','#625e59','#c4b9a7'][i%4]),outline:false}});
+ }
+ const dustPos=Cesium.Cartesian3.fromDegrees(baseLon,baseLat,building.ground+Math.min(building.height*.35,12));
+ viewer.entities.add({name:'Polvo de edificio destruido',position:dustPos,ellipsoid:{radii:new Cesium.Cartesian3(8,8,5),material:Cesium.Color.fromCssColorString('#a79b88').withAlpha(.42),outline:false}});
+}
+function findBuildingCollision(){
+ for(const b of cityBuildings){if(!b||b.destroyed)continue;
+  const north=(lat-b.lat)*111320,east=(lon-b.lon)*111320*Math.cos(b.lat*radians);
+  if(altitude>=b.ground+1&&altitude<=b.ground+b.height+7&&Math.abs(east)<=b.width/2+5&&Math.abs(north)<=b.depth/2+5)return b;
+ }return null;
 }
 const WORLD_PEER_ID='aerosim-public-world-v1';
 let mpPeer=null,mpHost=false,mpConnections=new Map(),remotePlanes=new Map(),mpLastSend=0,collisionLocked=false,mpReconnectPending=false;
@@ -467,7 +486,13 @@ function tick(now){requestAnimationFrame(tick);updateCity3D();const dt=Math.min(
  lat+=Math.cos(heading)*groundSpeed*dt/111320;
  lon+=Math.sin(heading)*groundSpeed*dt/(111320*Math.max(.15,Math.cos(lat*radians)));
  if(lon>180)lon-=360;if(lon< -180)lon+=360;lat=Math.max(-85,Math.min(85,lat));
- if(altitude<=groundHeight+3&&(physicsData.verticalSpeed||0)<-0.8){
+ const struckBuilding=findBuildingCollision();
+  if(struckBuilding){
+   destroyBuilding(struckBuilding);if(window.AeroAudio)AeroAudio.impact();
+   health=0;crashed=true;landed=false;collisionLocked=true;
+   destroyAircraft();setMessage('¡EDIFICIO DESTRUIDO!','El avión impactó el edificio: estructura derrumbada, escombros y polvo. Pulsa R para reiniciar.','warn');
+  }
+  if(!crashed&&altitude<=groundHeight+3&&(physicsData.verticalSpeed||0)<-0.8){
   if(window.AeroAudio)AeroAudio.impact();
   const impactSpeed=Math.abs(physicsData.verticalSpeed||0);altitude=groundHeight+2;
   if(impactSpeed>3||speed>125||!gear){health=0;crashed=true;landed=false;destroyAircraft();setMessage('AVIÓN DESTRUIDO','Impacto catastrófico: fuselaje fragmentado, restos dispersos y humo en el punto de impacto. Pulsa R para volver a la pista.','warn');}
