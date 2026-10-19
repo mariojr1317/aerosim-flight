@@ -133,6 +133,16 @@ function buildCity3D(centerLat,centerLon){
   clearCityBuildings();cityBuildDisabled=true;
  }
 }
+async function findNearestAirport(lat0,lon0){
+ const query='[out:json][timeout:12];(nwr(around:30000,'+lat0+','+lon0+')["aeroway"~"^(runway|aerodrome)$"];);out center tags;';
+ for(const endpoint of ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']){
+  try{const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:'data='+encodeURIComponent(query),signal:AbortSignal.timeout(14000)});if(!response.ok)continue;const data=await response.json();if(!Array.isArray(data.elements))continue;
+   const distance=(a,b,c,d)=>{const rad=Math.PI/180,dl=(c-a)*rad,dn=(d-b)*rad,h=Math.sin(dl/2)**2+Math.cos(a*rad)*Math.cos(c*rad)*Math.sin(dn/2)**2;return 6371000*2*Math.atan2(Math.sqrt(h),Math.sqrt(Math.max(0,1-h)));};
+   const candidates=data.elements.map(el=>({el,lat:el.lat??el.center?.lat,lon:el.lon??el.center?.lon})).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon)).map(x=>({...x,distance:distance(lat0,lon0,x.lat,x.lon),kind:x.el.tags?.aeroway,name:x.el.tags?.name||x.el.tags?.ref||(x.el.tags?.aeroway==='runway'?'Pista cercana':'Aeropuerto cercano')})).sort((a,b)=>a.distance-b.distance);
+   return candidates[0]||null;
+  }catch(e){console.warn('Búsqueda de aeropuerto falló:',e);}
+ }return null;
+}
 function updateCity3D(){
  if(cityBuildDisabled||performance.now()-lastCityBuild<8000)return;
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat < -85||lat > 85||lon < -180||lon > 180)return;
@@ -448,11 +458,25 @@ viewer.screenSpaceEventHandler.setInputAction(async click=>{
  }catch(e){console.warn('Elevación de salida no disponible; se usa la altura del globo.',e);}
  start.lat=newLat;start.lon=newLon;start.alt=Math.max(0,height)+2;groundHeight=Math.max(0,height);
  choosingTakeoff=false;$('chooseTakeoff').textContent='📍 Elegir despegue en el mapa';
- $('takeoffHint').textContent='Salida elegida: '+newLat.toFixed(4)+', '+newLon.toFixed(4);
+ $('takeoffHint').textContent='Buscando pista/aeropuerto cerca de la marca…';
  if(takeoffMarker)viewer.entities.remove(takeoffMarker);
- takeoffMarker=viewer.entities.add({name:'Punto de despegue elegido',position:Cesium.Cartesian3.fromDegrees(newLon,newLat,start.alt+1),point:{pixelSize:13,color:Cesium.Color.CYAN,outlineColor:Cesium.Color.WHITE,outlineWidth:2,disableDepthTestDistance:1000000},label:{text:'DESPEGUE',font:'bold 12px sans-serif',fillColor:Cesium.Color.WHITE,outlineColor:Cesium.Color.BLACK,outlineWidth:3,style:Cesium.LabelStyle.FILL_AND_OUTLINE,verticalOrigin:Cesium.VerticalOrigin.BOTTOM,pixelOffset:new Cesium.Cartesian2(0,-16)}});
- reset();
- setMessage('Punto de despegue actualizado','Coordenadas: '+newLat.toFixed(4)+', '+newLon.toFixed(4)+'. Pulsa ↑ para acelerar; al llegar a 110 km/h despegará.', 'good');
+ takeoffMarker=viewer.entities.add({name:'Punto de despegue elegido',position:Cesium.Cartesian3.fromDegrees(newLon,newLat,start.alt+1),point:{pixelSize:13,color:Cesium.Color.CYAN,outlineColor:Cesium.Color.WHITE,outlineWidth:2,disableDepthTestDistance:1000000},label:{text:'BUSCANDO PISTA…',font:'bold 12px sans-serif',fillColor:Cesium.Color.WHITE,outlineColor:Cesium.Color.BLACK,outlineWidth:3,style:Cesium.LabelStyle.FILL_AND_OUTLINE,verticalOrigin:Cesium.VerticalOrigin.BOTTOM,pixelOffset:new Cesium.Cartesian2(0,-16)}});
+ start.lat=newLat;start.lon=newLon;start.alt=Math.max(0,height)+2;groundHeight=Math.max(0,height);reset();
+ setMessage('Buscando aeropuerto cercano','Buscando pistas y aeropuertos en un radio de 30 km desde tu marca de despegue…','good');
+ const nearest=await findNearestAirport(newLat,newLon);
+ if(nearest){
+  start.lat=nearest.lat;start.lon=nearest.lon;
+  try{const sample=await Cesium.sampleTerrainMostDetailed(viewer.terrainProvider,[Cesium.Cartographic.fromDegrees(start.lon,start.lat)]);if(Number.isFinite(sample[0]?.height))groundHeight=Math.max(0,sample[0].height);}catch(e){}
+  start.alt=groundHeight+2;
+  if(takeoffMarker){takeoffMarker.position=Cesium.Cartesian3.fromDegrees(start.lon,start.lat,start.alt+1);takeoffMarker.label.text=(nearest.kind==='runway'?'PISTA: ':'AEROPUERTO: ')+nearest.name;}
+  $('takeoffHint').textContent='Salida: '+nearest.name+' · '+(nearest.distance/1000).toFixed(1)+' km de tu marca';
+  reset();
+  setMessage('Aeropuerto/pista seleccionado automáticamente',nearest.name+' · '+(nearest.distance/1000).toFixed(1)+' km de la marca original. Pulsa ↑ para acelerar y despegar.','good');
+ }else{
+  if(takeoffMarker)takeoffMarker.label.text='DESPEGUE';
+  $('takeoffHint').textContent='Salida elegida: '+newLat.toFixed(4)+', '+newLon.toFixed(4)+' · sin aeropuerto cercano disponible';
+  setMessage('No se encontró una pista cercana','Se mantiene el punto exacto que marcaste. Comprueba la conexión a internet e inténtalo de nuevo si quieres buscar aeropuertos.','warn');
+ }
 },Cesium.ScreenSpaceEventType.LEFT_CLICK);
 $('map').onclick=()=>{follow=true;viewer.camera.lookAt(Cesium.Cartesian3.fromDegrees(lon,lat,altitude),new Cesium.HeadingPitchRange(heading,-0.16,65));setMessage('Cámara cercana al avión','La cámara seguirá al avión a una distancia corta para verlo mejor.');};
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=true;if(['ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault();if(/^[0-9]$/.test(e.key)){throttle=Number(e.key)/9;setMessage('Potencia: '+Math.round(throttle*100)+'%','Usa las teclas 0–9 para elegir directamente la potencia del motor.');}if(e.key==='F3'){e.preventDefault();setDebugMode(!debugMode);}if(k==='g')gear=!gear;if(k==='r')reset();if(k==='c'){follow=true;viewer.camera.lookAt(Cesium.Cartesian3.fromDegrees(lon,lat,altitude),new Cesium.HeadingPitchRange(heading,-0.22,2400));}});
