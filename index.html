@@ -159,8 +159,8 @@ function mpReceiveState(id,s){
  for(const key of required){if(!Number.isFinite(s[key])){console.warn('Estado multijugador inválido ignorado:',id,key);return;}}
  if(s.lat < -85||s.lat > 85||s.lon < -180||s.lon > 180||s.altitude < -1000||s.altitude > 100000)return;
  let p=remotePlanes.get(id);
- // Límite de jugadores remotos para evitar saturar el renderizado en Chromebooks.
- if(!p&&remotePlanes.size>=1)return;
+ // Renderizado ligero por jugador: marcador simple, sin modelo 3D, etiqueta ni restos detallados.
+ // No se limita la cantidad de jugadores remotos por este control.
  // Los edificios 3D de tiles consumen bastante GPU; priorizar aviones y estabilidad en multijugador.
  if(!p&&osmBuildingsTileset&&osmBuildingsTileset.show){osmBuildingsTileset.show=false;setMessage('Modo multijugador optimizado','Se ocultaron temporalmente los edificios OSM 3D para dar prioridad al renderizado de los aviones.');}
  const safe={...s,lat:s.lat,lon:s.lon,altitude:s.altitude,heading:s.heading,pitch:s.pitch,roll:s.roll,speed:s.speed};
@@ -440,7 +440,7 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=true;if(['Arr
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 viewer.camera.moveEnd.addEventListener(()=>{});
 function tick(now){requestAnimationFrame(tick);updateCity3D();const dt=Math.min((now-last)/1000,.05);last=now;if(dt>0)debugFps=debugFps?debugFps*.9+(1/dt)*.1:1/dt; if(!viewer.isDestroyed())viewer.scene.requestRender();
- if(mpPeer&&mpPeer.open&&now-mpLastSend>100){const state=mpState();if(mpHost){mpBroadcast({type:'state',id:mpPeer.id,state});}else{for(const conn of mpConnections.values())mpSend(conn,{type:'state',state});}mpLastSend=now;}
+ if(mpPeer&&mpPeer.open&&now-mpLastSend>200){const state=mpState();if(mpHost){mpBroadcast({type:'state',id:mpPeer.id,state});}else{for(const conn of mpConnections.values())mpSend(conn,{type:'state',state});}mpLastSend=now;}
  if(!crashed&&!landed&&!collisionLocked){for(const [id,p] of remotePlanes){const s=p.state;const north=(s.lat-lat)*111320;const east=(s.lon-lon)*111320*Math.cos(lat*radians);const horizontal=Math.hypot(north,east);if(horizontal<10&&Math.abs(s.altitude-altitude)<7&&speed>25&&s.speed>25){collisionLocked=true;health=0;crashed=true;landed=false;destroyAircraft();setMessage('¡COLISIÓN MULTIJUGADOR!','Chocaste con el avión de otro jugador. Pulsa R para reiniciar.','warn');if(mpHost)mpBroadcast({type:'crash',id:mpPeer.id});else for(const conn of mpConnections.values())mpSend(conn,{type:'crash',id:mpPeer.id});break;}}}
  groundHeight=viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(lon,lat)) ?? groundHeight;
  if(landed&&!crashed){
